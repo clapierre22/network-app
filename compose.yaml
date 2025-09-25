@@ -1,0 +1,13 @@
+services:
+  user1:
+    build: .
+    container_name: user1
+    networks:
+      - test-net
+    ports:
+      - "8001:8001"
+    command: ["./user", "8001"]
+
+networks:
+  test-net:
+    driver: bridge

@@ -1,0 +1,13 @@
+End goal: Communicate between various peers that have at most 3 direct 
+	connections, but utilizing "gossip" to create a network table that 
+	then has djikstra's algorithim run on it to find best route from 
+	peer A to peer B. The network is based on docker with each peer 
+	utilizing a sepearate docker container on one docker network.
+	
+TODO:
+	Build test
+	Peer files connect to eachother over docker
+	Create data structures for direct peers and nav table
+	Implement D's A to find optimal route
+	Create system test that automatically takes a random destination 
+	for each host, then run system and send file 
