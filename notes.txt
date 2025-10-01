@@ -5,9 +5,13 @@ End goal: Communicate between various peers that have at most 3 direct
 	utilizing a sepearate docker container on one docker network.
 	
 TODO:
-	Build test
-	Peer files connect to eachother over docker
+	Build test DONE
+	Peer files connect to eachother over docker DONE
 	Create data structures for direct peers and nav table
 	Implement D's A to find optimal route
 	Create system test that automatically takes a random destination 
-	for each host, then run system and send file 
+	for each host, then run system and send file
+
+	Final implement: create local networks (several users within one 
+	container) that then communicate with other local networks (find
+	a local user on a seperate container from current container)

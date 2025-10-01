@@ -1,5 +1,18 @@
 #include "user.h"
 
+/*
+ * Global Variables
+ */
+user_info_t direct_users[MAX_DIRECT_USERS];
+int direct_count = 0;
+int this_port = 0;
+int this_sockfd;
+pthread_mutex_t user_mutex = PTHREAD_MUTEX_INITIALIZER;
+nav_table_t this_nav_table;
+uni_table_t routing_table;
+int rt_count = 0;
+pthread_mutex_t table_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 void error(const char* msg)
 {
 	fprintf(stderr, "%s[Error]%s %s\n", ANSI_RED, ANSI_RESET, msg);
@@ -9,6 +22,241 @@ void error(const char* msg)
 void status(const char* msg)
 {
 	// TODO
+}
+
+nav_route_t create_route(
+	user_info_t host, user_info_t dest, user_info_t next, int step)
+{
+	nav_route_t route;
+
+	route.host = host;
+	route.dest = dest;
+	route.next = next;
+	route.step = step;
+
+	return route;
+}
+
+void update_nav_table(nav_table_t* nav_table, nav_route_t new_route, int i)
+{
+	if (i < 0 || i > MAX_DIRECT_USERS) error("Invalid index");
+	nav_table->routes[i] = new_route;
+}
+
+void update_uni_table(nav_table_t* new_table)
+{
+	pthread_mutex_lock(&table_mutex);
+
+	if (rt_count < MAX_TOTAL_USERS)
+	{
+		routing_table.tables[rt_count] = *new_table;
+		rt_count++;
+
+		printf("%s[Routing]%s Updated universal table (now %d tables)\n",
+                       ANSI_GREEN, ANSI_RESET, rt_count);
+	}
+
+	pthread_mutex_unlock(&table_mutex);
+}
+
+int find_node_index(user_info_t* nodes, int node_count, int port)
+{
+	for (int i = 0; i < node_count; i++)
+	{
+		if(nodes[i].port == port) return i;
+	}
+
+	return(-1);
+}
+
+int find_node(user_info_t* nodes, int count, int port)
+{
+	for (int i = 0; i < count; i++) if (nodes[i].port == port) return i;
+
+	return(-1);
+}
+
+int build_graph(uni_table_t* uni_table, user_info_t* nodes,
+		int graph[MAX_TOTAL_USERS][MAX_TOTAL_USERS])
+{
+	int node_count = 0;
+
+	// Init graph matrix to 0
+	memset(graph, 0, sizeof(int) * MAX_TOTAL_USERS * MAX_TOTAL_USERS);
+
+	// Build adjanceny matix from routing table
+	for (int t = 0; t < rt_count; t++)
+	{
+		for (int r = 0; r < MAX_DIRECT_USERS; r++)
+		{
+			nav_route_t route = uni_table->tables[t].routes[r];
+
+			// Skip routes that are unitialized
+			if (route.dest.port == 0) continue;
+
+			// Add host node if not initalized
+			int host_idx = find_node_index(
+					nodes, node_count, route.host.port);
+			if (host_idx < 0 && node_count < MAX_TOTAL_USERS)
+			{
+				nodes[node_count] = route.host;
+				host_idx = node_count++;
+			}
+
+			// Add dest node
+			int dest_idx = find_node_index(
+					nodes, node_count, route.dest.port);
+			if (dest_idx < 0 && node_count < MAX_TOTAL_USERS)
+			{
+				nodes[node_count] = route.dest;
+				dest_idx = node_count++;
+			}
+			
+			// Add edge to adjacency matrix
+			if (host_idx >= 0 && dest_idx >= 0)
+			{
+				graph[host_idx][dest_idx] = 1;
+			}
+		}
+	}
+
+	return node_count;
+}
+
+int min_distance(int dist[], int spt_set[], int node_count)
+{
+	int min = INT_MAX;
+	int min_idx = -1;
+
+	// Find minimum distance vertex not yet in tree
+	for (int i = 0; i < node_count; i++)
+	{
+		if (spt_set[i] == 0 && dist[i] <= min)
+		{
+			min = dist[i];
+			min_idx = i;
+		}
+	}
+
+	return min_idx;
+}
+
+user_info_t find_next(
+		int src[], user_info_t* nodes, int src_idx, int dest_idx)
+{
+	// Find first jump from src
+	int curr = dest_idx;
+	int prev = src[curr];
+
+	// Walk until node parent is src
+	while (prev != src_idx && prev != -1)
+	{
+		curr = prev;
+		prev = src[curr];
+	}
+
+	return nodes[curr];
+}
+
+void run_da(uni_table_t* uni_table, nav_table_t* this_table)
+{
+	pthread_mutex_lock(&table_mutex);
+
+	user_info_t nodes[MAX_TOTAL_USERS];
+	int graph[MAX_TOTAL_USERS][MAX_TOTAL_USERS];
+	int dist[MAX_TOTAL_USERS];
+	int visited[MAX_TOTAL_USERS];
+	int parent[MAX_TOTAL_USERS];
+
+	int node_count = build_graph(uni_table, nodes, graph);
+	int src = find_node(nodes, node_count, this_port);
+	
+	for (int i = 0; i < node_count; i++)
+	{
+		dist[i] = INT_MAX;
+		visited[i] = 0;
+		parent[i] = -1;
+	}
+
+	dist[src] = 0;
+	parent[src] = src;
+
+	// Dijkstra's Algorithim
+	for (int count = 0; count < (node_count - 1); count++)
+	{
+		int min = min_distance(dist, visited, node_count);
+		if (min == -1) break;
+
+		visited[min] = 1;
+
+		for (int v = 0; v < node_count; v++)
+		{
+			if (!visited[v] 
+				&& graph[min][v]
+				&& dist[min] != INT_MAX
+				&& dist[min] + graph[min][v] < dist[v])
+			{
+				dist[v] = dist[min] + graph[min][v];
+				parent[v] = min;
+			}
+		}
+	}
+
+	// Build routing table
+	int route_idx = 0;
+	user_info_t this_node = {.port = this_port};
+	strcpy(this_node.hostname, "localhost");
+
+	for (int i = 0; i < node_count && route_idx < MAX_DIRECT_USERS; i++)
+	{
+		if (i == src || dist[i] == INT_MAX) continue;
+
+		nav_route_t route = create_route(
+					this_node,
+					nodes[i],
+					find_next(parent, nodes, src, i),
+					dist[i]);
+		update_nav_table(this_table, route, route_idx++);
+	}
+
+	printf("Dijkstra computed %d routes\n", route_idx);
+
+	pthread_mutex_unlock(&table_mutex);
+}
+
+void gossip(user_info_t host, user_info_t user)
+{
+	pthread_mutex_lock(&user_mutex);
+
+	bool connected = false;
+	for (int i = 0; i < direct_count; i++)
+	{
+		if (direct_users[i].port == user.port)
+		{
+			connected = true;
+			break;
+		}
+	}
+
+	if (!connected && direct_count < MAX_DIRECT_USERS)
+	{
+		direct_users[direct_count] = user;
+		direct_users[direct_count].connected = true;
+
+		nav_route_t direct_route = create_route(
+						host, user, user, 1);
+		update_nav_table(
+			&this_nav_table, direct_route, direct_count);
+		direct_count++;
+
+		printf("Gossip added direct connection to port %d\n",
+				user.port);
+
+		update_uni_table(&this_nav_table);
+		run_da(&routing_table, &this_nav_table);
+	}
+
+	pthread_mutex_unlock(&user_mutex);
 }
 
 void* handle_user(void* arg)
@@ -37,6 +285,17 @@ void* handle_user(void* arg)
 			inet_ntoa(user_addr.sin_addr),
 			ANSI_RESET,
 			buff);
+	
+	user_info_t peer, host;
+	strcpy(peer.hostname, inet_ntoa(user_addr.sin_addr));
+	peer.port = ntohs(user_addr.sin_port);
+	peer.connected = true;
+
+	gethostname(host.hostname, NAME_MAX); // Retrieves hostname from docker container
+	host.port = this_port;
+	host.connected = true;
+
+	gossip(host, peer);
 
 	char* msg = "Message ACK";
 	n = write(user_sockfd, msg, strlen(msg));
@@ -145,6 +404,17 @@ void* client_thread(void* arg)
 					user_id,
 					ANSI_RESET,
 					msg);
+
+				user_info_t peer, this_host;
+				strcpy(peer.hostname, host);
+				peer.port = port;
+				peer.connected = true;
+
+				gethostname(this_host.hostname, NAME_MAX);
+				this_host.port = this_port;
+				this_host.connected = true;
+
+				gossip(this_host, peer);
 			}
 		}
 
@@ -164,6 +434,9 @@ int main(int argc, char* argv[])
 
 	int port = atoi(argv[1]);
 	this_port = port;
+
+	memset(&this_nav_table, 0, sizeof(nav_table_t));
+	memset(&routing_table, 0, sizeof(uni_table_t));
 
 	pthread_t server_t;
 	pthread_create(&server_t, NULL, server_thread, &port);
