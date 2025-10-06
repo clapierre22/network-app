@@ -1,24 +1,253 @@
 services:
-  user1:
-    build: .
-    container_name: user1
-    networks:
-      - test-net
-    ports:
-      - "8001:8001"
-    command: ["./user", "8001"]
+	node0:
+		build: .
+		container_name: node0
+		hostname: node0
+		networks:
+			- test-net
+		ports:
+	command:["./user", "8001"]
 
-  user2:
-    build: .
-    container_name: user2
-    networks:
-      - test-net
-    ports:
-      - "8002:8002"
-    depends_on:
-      - user1
-    command: ["sh", "-c", "sleep 1 && ./user 8002 user1 8001"]
+	node1:
+		build: .
+		container_name: node1
+		hostname: node1
+		networks:
+			- test-net
+		ports:
+	command:["./user", "8002"]
+
+	node2:
+		build: .
+		container_name: node2
+		hostname: node2
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node1
+	command: ["sh", "-c", "sleep 1 && .user 8003	node1 8001"]
+
+	node3:
+		build: .
+		container_name: node3
+		hostname: node3
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node1
+	- node2
+	command: ["sh", "-c", "sleep 1 && .user 8004	node1 8001	node2 8002"]
+
+	node4:
+		build: .
+		container_name: node4
+		hostname: node4
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node3
+	- node1
+	- node2
+	command: ["sh", "-c", "sleep 1 && .user 8005	node3 8003	node1 8001	node2 8002"]
+
+	node5:
+		build: .
+		container_name: node5
+		hostname: node5
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node1
+	- node3
+	- node2
+	command: ["sh", "-c", "sleep 1 && .user 8006	node1 8001	node3 8003	node2 8002"]
+
+	node6:
+		build: .
+		container_name: node6
+		hostname: node6
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node5
+	- node3
+	- node4
+	command: ["sh", "-c", "sleep 1 && .user 8007	node5 8005	node3 8003	node4 8004"]
+
+	node7:
+		build: .
+		container_name: node7
+		hostname: node7
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node3
+	- node1
+	- node4
+	command: ["sh", "-c", "sleep 1 && .user 8008	node3 8003	node1 8001	node4 8004"]
+
+	node8:
+		build: .
+		container_name: node8
+		hostname: node8
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node4
+	- node3
+	- node2
+	command: ["sh", "-c", "sleep 1 && .user 8009	node4 8004	node3 8003	node2 8002"]
+
+	node9:
+		build: .
+		container_name: node9
+		hostname: node9
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node7
+	- node5
+	- node2
+	command: ["sh", "-c", "sleep 1 && .user 8010	node7 8007	node5 8005	node2 8002"]
+
+	node10:
+		build: .
+		container_name: node10
+		hostname: node10
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node3
+	- node6
+	- node4
+	command: ["sh", "-c", "sleep 1 && .user 8011	node3 8003	node6 8006	node4 8004"]
+
+	node11:
+		build: .
+		container_name: node11
+		hostname: node11
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node1
+	- node6
+	- node4
+	command: ["sh", "-c", "sleep 1 && .user 8012	node1 8001	node6 8006	node4 8004"]
+
+	node12:
+		build: .
+		container_name: node12
+		hostname: node12
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node4
+	- node10
+	- node6
+	command: ["sh", "-c", "sleep 1 && .user 8013	node4 8004	node10 8010	node6 8006"]
+
+	node13:
+		build: .
+		container_name: node13
+		hostname: node13
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node7
+	- node3
+	- node1
+	command: ["sh", "-c", "sleep 1 && .user 8014	node7 8007	node3 8003	node1 8001"]
+
+	node14:
+		build: .
+		container_name: node14
+		hostname: node14
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node11
+	- node1
+	- node6
+	command: ["sh", "-c", "sleep 1 && .user 8015	node11 8011	node1 8001	node6 8006"]
+
+	node15:
+		build: .
+		container_name: node15
+		hostname: node15
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node4
+	- node11
+	- node14
+	command: ["sh", "-c", "sleep 1 && .user 8016	node4 8004	node11 8011	node14 8014"]
+
+	node16:
+		build: .
+		container_name: node16
+		hostname: node16
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node14
+	- node9
+	- node6
+	command: ["sh", "-c", "sleep 1 && .user 8017	node14 8014	node9 8009	node6 8006"]
+
+	node17:
+		build: .
+		container_name: node17
+		hostname: node17
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node1
+	- node14
+	- node7
+	command: ["sh", "-c", "sleep 1 && .user 8018	node1 8001	node14 8014	node7 8007"]
+
+	node18:
+		build: .
+		container_name: node18
+		hostname: node18
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node6
+	- node11
+	- node14
+	command: ["sh", "-c", "sleep 1 && .user 8019	node6 8006	node11 8011	node14 8014"]
+
+	node19:
+		build: .
+		container_name: node19
+		hostname: node19
+		networks:
+			- test-net
+		ports:
+	depends_on:
+	- node8
+	- node3
+	- node15
+	command: ["sh", "-c", "sleep 1 && .user 8020	node8 8008	node3 8003	node15 8015"]
 
 networks:
-  test-net:
-    driver: bridge
+	test-net:
+		driver: bridge

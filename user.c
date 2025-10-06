@@ -43,20 +43,116 @@ void update_nav_table(nav_table_t* nav_table, nav_route_t new_route, int i)
 	nav_table->routes[i] = new_route;
 }
 
+bool table_exists(int host_port)
+{
+	for (int i = 0; i < rt_count; i++)
+	{
+		if (routing_table.tables[i].routes[0].host.port == host_port) return true;
+	}
+
+	return false;
+}
+
 void update_uni_table(nav_table_t* new_table)
 {
 	pthread_mutex_lock(&table_mutex);
 
-	if (rt_count < MAX_TOTAL_USERS)
+	// If table is empty or already exists, don't add
+	if (new_table->routes[0].host.port == 0)
+	{
+		pthread_mutex_unlock(&table_mutex);
+		return;
+	}
+
+	if (rt_count < MAX_TOTAL_USERS
+		&& !table_exists(new_table->routes[0].host.port))
 	{
 		routing_table.tables[rt_count] = *new_table;
 		rt_count++;
 
-		printf("%s[Routing]%s Updated universal table (now %d tables)\n",
-                       ANSI_GREEN, ANSI_RESET, rt_count);
+		printf("%s[Routing]%s Added routing table from port %d (total: %d tables)\n",
+                       ANSI_GREEN, ANSI_RESET, 
+		       new_table->routes[0].host.port, rt_count);
 	}
 
 	pthread_mutex_unlock(&table_mutex);
+}
+
+void serialize_table(nav_table_t* table, char* buff)
+{
+	sprintf(buff, "ROUTES:");
+	for (int i = 0; i < MAX_DIRECT_USERS; i++)
+	{
+		nav_route_t* route = &table->routes[i];
+		if (route->dest.port == 0) continue;
+
+		sprintf(buff + strlen(buff), "%s:%d->%s:%d",
+			route->host.hostname, route->host.port,
+			route->dest.hostname, route->dest.port);
+	}
+}
+
+void deserialize_table(nav_table_t* table, char* buff)
+{
+	memset(table, 0, sizeof(nav_table_t));
+
+	if (strncmp(buff, "ROUTES:", 7) != 0) return;
+
+	char* token = strtok(buff + 7, "|");
+	int idx = 0;
+
+	while (token!= NULL && idx < MAX_DIRECT_USERS)
+	{
+		user_info_t host, dest;
+
+		// Parse buffer: hostname:port->hostname:port
+		if (sscanf(token, "%[^:]:%d->%[^:]:%d",
+			host.hostname, &host.port,
+			dest.hostname, &dest.port) == 4)
+		{
+			host.connected = true;
+			dest.connected = true;
+			table->routes[idx++] = create_route(
+						host, dest, dest, 1);
+		}
+
+		token = strtok(NULL, "|");
+	}
+}
+
+void share_routing_table(char* host, int port)
+{
+	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0) error("Error creating socket");
+
+	struct hostent* h = gethostbyname(host);
+	if (h == NULL)
+	{
+		close(sockfd);
+		return;
+	}
+
+	struct sockaddr_in addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	memcpy(&addr.sin_addr, h->h_addr, h->h_length);
+	addr.sin_port = htons(port);
+
+	if (connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+	{
+		close(sockfd);
+		error("Error connecting to socket");
+	}
+
+	char buff[BUFF_MAX];
+	pthread_mutex_lock(&user_mutex);
+	serialize_table(&this_nav_table, buff);
+	pthread_mutex_unlock(&user_mutex);
+
+	write(sockfd, buff, strlen(buff));
+	close(sockfd);
+
+	printf("[Gossip] Shared routing table with %s:%d\n", host, port);
 }
 
 int find_node_index(user_info_t* nodes, int node_count, int port)
@@ -219,7 +315,7 @@ void run_da(uni_table_t* uni_table, nav_table_t* this_table)
 		update_nav_table(this_table, route, route_idx++);
 	}
 
-	printf("Dijkstra computed %d routes\n", route_idx);
+	printf("[Dijkstra] Computed %d routes\n", route_idx);
 
 	pthread_mutex_unlock(&table_mutex);
 }
@@ -249,10 +345,11 @@ void gossip(user_info_t host, user_info_t user)
 			&this_nav_table, direct_route, direct_count);
 		direct_count++;
 
-		printf("Gossip added direct connection to port %d\n",
-				user.port);
+		printf("[Gossip] Added direct connection to %s:%d\n",
+				user.hostname, user.port);
 
 		update_uni_table(&this_nav_table);
+		share_routing_table(user.hostname, user.port);
 		run_da(&routing_table, &this_nav_table);
 	}
 
@@ -280,27 +377,43 @@ void* handle_user(void* arg)
 	}
 
 	buff[n] = '\0';
-	printf("%s[User %s]%s %s\n",
+
+	// Check if gossip msg
+	if (strncmp(buff, "ROUTES:", 7) == 0)
+	{
+		nav_table_t new_table;
+		deserialize_table(&new_table, buff);
+
+		if (new_table.routes[0].host.port != 0)
+		{
+			update_uni_table(&new_table);
+			printf("[Gossip] Recieved routing table from %s\n",
+					inet_ntoa(user_addr.sin_addr));
+
+			run_da(&routing_table, &this_nav_table);
+		}
+	} else {
+		printf("%s[User %s]%s %s\n",
 			ANSI_YELLOW,
 			inet_ntoa(user_addr.sin_addr),
 			ANSI_RESET,
 			buff);
 	
-	user_info_t peer, host;
-	strcpy(peer.hostname, inet_ntoa(user_addr.sin_addr));
-	peer.port = ntohs(user_addr.sin_port);
-	peer.connected = true;
+		user_info_t peer, host;
+		strcpy(peer.hostname, inet_ntoa(user_addr.sin_addr));
+		peer.port = ntohs(user_addr.sin_port);
+		peer.connected = true;
 
-	gethostname(host.hostname, NAME_MAX); // Retrieves hostname from docker container
-	host.port = this_port;
-	host.connected = true;
+		gethostname(host.hostname, NAME_MAX); // Retrieves hostname from docker container
+		host.port = this_port;
+		host.connected = true;
 
-	gossip(host, peer);
+		gossip(host, peer);
 
-	char* msg = "Message ACK";
-	n = write(user_sockfd, msg, strlen(msg));
-	if (n < 0) error("Error writing to socket");
-	
+		char* msg = "ACK";
+		n = write(user_sockfd, msg, strlen(msg));
+		if (n < 0) error("Error writing to socket");
+	}
 	close(user_sockfd);
 	return NULL;
 }
@@ -349,10 +462,16 @@ void* server_thread(void* arg)
 
 void* client_thread(void* arg)
 {
+	// TODO: edit solution to take three direct peers
+	// IDEA: maybe have all direct peers be within the same container, 
+	// then they each have a connection to a different container
 	char* host = ((char**)arg)[0];
 	int port = atoi(((char**)arg)[1]);
 	int count = 0;
 	int user_id = port;
+
+	//char** argv = (char**)arg;
+
 
 	while(RUNNING)
 	{

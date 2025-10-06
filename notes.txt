@@ -7,8 +7,8 @@ End goal: Communicate between various peers that have at most 3 direct
 TODO:
 	Build test DONE
 	Peer files connect to eachother over docker DONE
-	Create data structures for direct peers and nav table
-	Implement D's A to find optimal route
+	Create data structures for direct peers and nav table DONE
+	Implement D's A to find optimal route DONE
 	Create system test that automatically takes a random destination 
 	for each host, then run system and send file
 
