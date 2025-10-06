@@ -502,7 +502,7 @@ void* client_thread(void* arg)
 			client_sockfd, 
 			(struct sockaddr*)&addr, sizeof(addr)) < 0)
 		{
-			perror("Error connectig to socket");
+			perror("Error connecting to socket");
 			close(client_sockfd);
 			sleep(1);
 			continue;
@@ -560,7 +560,7 @@ int main(int argc, char* argv[])
 	pthread_t server_t;
 	pthread_create(&server_t, NULL, server_thread, &port);
 
-	if (argc == 4)
+	if (argc >= 4)
 	{
 		sleep(1);
 		char* user_args[] = {argv[2], argv[3]};

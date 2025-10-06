@@ -32,13 +32,12 @@ int main(int argc, char* argv[])
 	{
 		int port;
 		port = BASE_PORT + i;
-		fprintf(fp, "	node%d:\n", i);
-		fprintf(fp, "		build: .\n");
-		fprintf(fp, "		container_name: node%d\n", i);
-		fprintf(fp, "		hostname: node%d\n", i);
-		fprintf(fp, "		networks:\n");
-		fprintf(fp, "			- test-net\n");
-		fprintf(fp, "		ports:\n");
+		fprintf(fp, "  node%d:\n", i);
+		fprintf(fp, "    build: .\n");
+		fprintf(fp, "    container_name: node%d\n", i);
+		fprintf(fp, "    hostname: node%d\n", i);
+		fprintf(fp, "    networks:\n");
+		fprintf(fp, "      - test-net\n");	
 		
 		if (i > 1)
 		{
@@ -56,31 +55,31 @@ int main(int argc, char* argv[])
 
 			shuffle(avail, avail_count);
 
-			fprintf(fp, "	depends_on:\n");
+			fprintf(fp, "    depends_on:\n");
 			for (int x = 0; x < conn_count; x++)
 			{
-				fprintf(fp, "	- node%d\n", avail[x]);
+				fprintf(fp, "      - node%d\n", avail[x]);
 			}
 
-			fprintf(fp, "	command: [\"sh\", \"-c\", \"sleep 1 && .user %d", port);
+			fprintf(fp, "    command: [\"sh\", \"-c\", \"sleep 3 && ./user %d", port);
 			for (int y = 0; y < conn_count; y++)
 			{
 				int peer_idx = avail[y];
-				int peer_port = BASE_PORT + peer_idx - 1;
-				fprintf(fp, "	node%d %d", peer_idx, peer_port);
+				int peer_port = BASE_PORT + peer_idx;
+				fprintf(fp, " node%d %d", peer_idx, peer_port);
 			}
 			fprintf(fp, "\"]\n");
 
 			free(avail);
 		} else {
-			fprintf(fp, "	command:[\"./user\", \"%d\"]\n", port);
+			fprintf(fp, "    command: [\"./user\", \"%d\"]\n", port);
 		}
 		fprintf(fp, "\n");
 	}
 
 	fprintf(fp, "networks:\n");
-	fprintf(fp, "	test-net:\n");
-	fprintf(fp, "		driver: bridge\n");
+	fprintf(fp, "  test-net:\n");
+	fprintf(fp, "    driver: bridge\n");
 
 	fclose(fp);
 
