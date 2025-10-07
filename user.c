@@ -60,6 +60,9 @@ void update_uni_table(nav_table_t* new_table)
 	// If table is empty or already exists, don't add
 	if (new_table->routes[0].host.port == 0)
 	{
+		#ifdef DEBUG
+			printf("[DEBUG] Table is empty or already exists\n");
+		#endif
 		pthread_mutex_unlock(&table_mutex);
 		return;
 	}
@@ -86,7 +89,7 @@ void serialize_table(nav_table_t* table, char* buff)
 		nav_route_t* route = &table->routes[i];
 		if (route->dest.port == 0) continue;
 
-		sprintf(buff + strlen(buff), "%s:%d->%s:%d",
+		sprintf(buff + strlen(buff), "|%s:%d->%s:%d",
 			route->host.hostname, route->host.port,
 			route->dest.hostname, route->dest.port);
 	}
@@ -133,6 +136,9 @@ void share_routing_table(char* host, int port)
 	struct hostent* h = gethostbyname(host);
 	if (h == NULL)
 	{
+		#ifdef DEBUG
+			printf("[DEBUG] Host not found by name\n");
+		#endif
 		close(sockfd);
 		return;
 	}
@@ -351,19 +357,21 @@ void gossip(user_info_t host, user_info_t user, bool is_client)
 
 		printf("[Gossip] Added direct connection to %s:%d\n",
 				user.hostname, user.port);
-
+// Runs to here at least
+		pthread_mutex_unlock(&user_mutex);
 		update_uni_table(&this_nav_table);
 		
 		// Only share if requested (from client side)
-		if (is_client)
-		{
-			share_routing_table(user.hostname, user.port);
-		}
+		//if (is_client)
+		//{
+		//	share_routing_table(user.hostname, user.port);
+		//}
 		
 		run_da(&routing_table, &this_nav_table);
+	} else {
+		pthread_mutex_unlock(&user_mutex);
 	}
-
-	pthread_mutex_unlock(&user_mutex);}
+}
 
 void* handle_user(void* arg)
 {
@@ -401,6 +409,10 @@ void* handle_user(void* arg)
 
 			run_da(&routing_table, &this_nav_table);
 		}
+
+		// Send ACK
+		char* msg = "ACK";
+		n = write(user_sockfd, msg, strlen(msg));
 	} else {
 		printf("%s[User %s]%s %s\n",
 			ANSI_YELLOW,
@@ -419,9 +431,25 @@ void* handle_user(void* arg)
 
 		gossip(host, peer, false);
 
-		char* msg = "ACK";
-		n = write(user_sockfd, msg, strlen(msg));
-		if (n < 0) error("Error writing to socket");
+		// Respond with routing table
+		//char* msg = "ACK";
+		
+		char resp[BUFF_MAX];
+		pthread_mutex_lock(&user_mutex);
+		serialize_table(&this_nav_table, resp);
+		pthread_mutex_unlock(&user_mutex);
+
+		#ifdef DEBUG
+			printf("[DEBUG] Sending routing table: '%s' (%zu bytes)\n", resp, strlen(resp));
+		#endif
+
+		n = write(user_sockfd, resp, strlen(resp));
+		if (n < 0)
+		{
+			error("Error writing to socket");
+		} else {
+			printf("[Gossip] Sent routing table to %s\n", inet_ntoa(user_addr.sin_addr));
+		}
 	}
 	close(user_sockfd);
 	return NULL;
@@ -463,6 +491,9 @@ void* server_thread(void* arg)
 
 		pthread_t t;
 		pthread_create(&t, NULL, handle_user, client_sockfd);
+		#ifdef DEBUG
+			printf("[DEBUG] Created thread for handle_user\n");
+		#endif
 		pthread_detach(t);
 	}
 
@@ -486,8 +517,10 @@ void* client_thread(void* arg)
 	int retry_count = 0;
 
 	//char** argv = (char**)arg;
-	printf("[DEBUG] client_thread starting: host=%s, port_str=%s, port=%d\n", 
+	#ifdef DEBUG
+		printf("[DEBUG] client_thread starting: host=%s, port_str=%s, port=%d\n", 
                host, args[1], port);
+	#endif
 
 	free(args);
 
@@ -501,8 +534,7 @@ void* client_thread(void* arg)
 			sleep(1);
 			break;
 		}
-
-		struct sockaddr_in addr;
+		
 		struct hostent* h = gethostbyname(host);
 
 		if (h == NULL)
@@ -514,7 +546,8 @@ void* client_thread(void* arg)
 			sleep(1);
 			continue;
 		}
-
+		
+		struct sockaddr_in addr;
 		memset(&addr, 0, sizeof(addr));
 		addr.sin_family = AF_INET;
 		memcpy(&addr.sin_addr, h->h_addr, h->h_length);
@@ -535,31 +568,80 @@ void* client_thread(void* arg)
 		if (write(client_sockfd, msg, strlen(msg)) < 0)
 		{
 			perror("Error writing to socket");
-		} else {
-			char ack[BUFF_MAX];
-			int n = read(client_sockfd, ack, BUFF_MAX - 1);
-			if (n > 0)
+			close(client_sockfd);
+			retry_count++;
+			continue;
+		} 
+
+		#ifdef DEBUG
+			printf("[DEBUG] Sent test message to %s:%d, waiting for response...\n", host, port);
+		#endif
+		//else {
+			//char ack[BUFF_MAX];
+			//int n = read(client_sockfd, ack, BUFF_MAX - 1);
+	
+		printf("%s[Peer %d]%s Connected\n",
+			ANSI_GREEN,
+			user_id,
+			ANSI_RESET);
+		user_info_t peer, this_host;
+		strcpy(peer.hostname, host);
+		peer.port = port;
+		peer.connected = true;
+		
+		gethostname(this_host.hostname, NAME_MAX);
+		this_host.port = this_port;
+		this_host.connected = true;
+// PROBLEM HERE
+		// Share routing table
+		gossip(this_host, peer, true);
+		#ifdef DEBUG
+			printf("[DEBUG] Shared routing table from %s to %s:%d\n", this_host.hostname, host, port);
+		#endif
+
+		// Receive routing table
+		char resp[BUFF_MAX];
+		int n = read(client_sockfd, resp, BUFF_MAX - 1);
+// PROBLEM END (below does not run)
+		#ifdef DEBUG
+			printf("[DEBUG] Received %d bytes from %s:%d\n", n, host, port);
+		#endif
+
+		if (n > 0)
+		{
+			resp[n] = '\0';
+			
+			#ifdef DEBUG
+				printf("[DEBUG] Received: %s\n", resp);
+			#endif
+
+			printf("%s[Peer %d]%s Connected\n",
+				ANSI_GREEN,
+				user_id,
+				ANSI_RESET);
+
+			// Process received routing table
+			if (strncmp(resp, "ROUTES:", 7) == 0)
 			{
-				ack[n] = '\0';
-				printf("%s[Peer %d]%s %s\n",
-					ANSI_GREEN,
-					user_id,
-					ANSI_RESET,
-					msg);
-
-				user_info_t peer, this_host;
-				strcpy(peer.hostname, host);
-				peer.port = port;
-				peer.connected = true;
-
-				gethostname(this_host.hostname, NAME_MAX);
-				this_host.port = this_port;
-				this_host.connected = true;
-
-				gossip(this_host, peer, true);
+				nav_table_t received_table;
+				deserialize_table(&received_table, resp);
+		
+				if (received_table.routes[0].host.port != 0)
+				{
+					update_uni_table(&received_table);
+					printf("[Gossip] Received routing table from %s:%d\n", host, port);
+					run_da(&routing_table, &this_nav_table);
+				} else {
+					printf("[DEBUG] Received table was empty\n");
+				}
+			} else {
+				printf("[DEBUG] Response was not a routing table\n");
 			}
+		} else if (n == 0) {
+			printf("[DEBUG] Connection closed by peer\n");
+		} else {
+			printf("[DEBUG] Read error: %d\n", n);
 		}
-
 		close(client_sockfd);
 		connected = true;
 		sleep(1);

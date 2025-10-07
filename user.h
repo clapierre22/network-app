@@ -28,6 +28,8 @@
 #define RUNNING 1
 #define MAX_RETRIES 30
 
+#define DEBUG
+
 typedef struct
 {
 	char hostname[NAME_MAX];
@@ -56,6 +58,21 @@ typedef struct
   // to then add that user's nav_table to the list
   nav_table_t tables[MAX_TOTAL_USERS];
 } uni_table_t;
+
+//typdef enum
+//{
+//	CONN;
+//	ACK;
+//	ERR;
+//	RT;
+//	COMM;
+//} packet_type_t;
+
+//typedef struct
+//{
+//	int from, to;
+//	packet_type_t type;
+//} packet_t;
 
 void error(const char* msg);
 void status(const char* msg);

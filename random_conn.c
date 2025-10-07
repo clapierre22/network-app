@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define NUM_NODES 20
+#define NUM_NODES 6
 #define BASE_PORT 8001
 #define DIRECT_NODES 3
 

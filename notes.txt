@@ -9,6 +9,30 @@ TODO:
 	Peer files connect to eachother over docker DONE
 	Create data structures for direct peers and nav table DONE
 	Implement D's A to find optimal route DONE
+	
+
+System:
+	"General" ping (includes Setup and Communicate)
+	- Every time two peer communicate, they share their routing tables
+	  with eachother
+
+	"Setup" ping peers:
+	- Connect to peer
+	- Gossip, sharing routing table
+	- Process incoming routing table
+	- Run D's A
+	- Disconnect
+
+	"Communicate" date transfer with peers:
+	- Put destination peer
+	- Find route to peer
+	- If no route, ping furthest peer to find dest
+	- Send data to peer along route (passing from peer to peer)
+		- Peers only know where data came from, and next hop peer
+	- Recieve ACK
+	- Disconnect
+
+In the end:
 	Create system test that automatically takes a random destination 
 	for each host, then run system and send file
 
