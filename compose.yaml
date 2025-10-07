@@ -13,7 +13,9 @@ services:
     hostname: node1
     networks:
       - test-net
-    command: ["./user", "8002"]
+    depends_on:
+      - node0
+    command: ["sh", "-c", "sleep 2 && ./user 8002 node0 8001"]
 
   node2:
     build: .
@@ -23,7 +25,8 @@ services:
       - test-net
     depends_on:
       - node1
-    command: ["sh", "-c", "sleep 3 && ./user 8003 node1 8002"]
+      - node0
+    command: ["sh", "-c", "sleep 2 && ./user 8003 node1 8002 node0 8001"]
 
   node3:
     build: .
@@ -32,9 +35,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node1
+      - node0
       - node2
-    command: ["sh", "-c", "sleep 3 && ./user 8004 node1 8002 node2 8003"]
+      - node1
+    command: ["sh", "-c", "sleep 2 && ./user 8004 node0 8001 node2 8003 node1 8002"]
 
   node4:
     build: .
@@ -43,10 +47,10 @@ services:
     networks:
       - test-net
     depends_on:
+      - node1
       - node3
       - node2
-      - node1
-    command: ["sh", "-c", "sleep 3 && ./user 8005 node3 8004 node2 8003 node1 8002"]
+    command: ["sh", "-c", "sleep 3 && ./user 8005 node1 8002 node3 8004 node2 8003"]
 
   node5:
     build: .
@@ -55,10 +59,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node1
       - node2
+      - node0
       - node3
-    command: ["sh", "-c", "sleep 3 && ./user 8006 node1 8002 node2 8003 node3 8004"]
+    command: ["sh", "-c", "sleep 3 && ./user 8006 node2 8003 node0 8001 node3 8004"]
 
   node6:
     build: .
@@ -67,10 +71,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node2
       - node5
+      - node3
       - node1
-    command: ["sh", "-c", "sleep 3 && ./user 8007 node2 8003 node5 8006 node1 8002"]
+    command: ["sh", "-c", "sleep 3 && ./user 8007 node5 8006 node3 8004 node1 8002"]
 
   node7:
     build: .
@@ -79,10 +83,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node5
-      - node1
       - node3
-    command: ["sh", "-c", "sleep 3 && ./user 8008 node5 8006 node1 8002 node3 8004"]
+      - node0
+      - node6
+    command: ["sh", "-c", "sleep 3 && ./user 8008 node3 8004 node0 8001 node6 8007"]
 
   node8:
     build: .
@@ -91,10 +95,10 @@ services:
     networks:
       - test-net
     depends_on:
+      - node1
       - node2
-      - node4
-      - node5
-    command: ["sh", "-c", "sleep 3 && ./user 8009 node2 8003 node4 8005 node5 8006"]
+      - node0
+    command: ["sh", "-c", "sleep 4 && ./user 8009 node1 8002 node2 8003 node0 8001"]
 
   node9:
     build: .
@@ -104,9 +108,9 @@ services:
       - test-net
     depends_on:
       - node7
-      - node1
       - node6
-    command: ["sh", "-c", "sleep 3 && ./user 8010 node7 8008 node1 8002 node6 8007"]
+      - node3
+    command: ["sh", "-c", "sleep 4 && ./user 8010 node7 8008 node6 8007 node3 8004"]
 
   node10:
     build: .
@@ -116,9 +120,9 @@ services:
       - test-net
     depends_on:
       - node2
-      - node7
-      - node6
-    command: ["sh", "-c", "sleep 3 && ./user 8011 node2 8003 node7 8008 node6 8007"]
+      - node5
+      - node3
+    command: ["sh", "-c", "sleep 4 && ./user 8011 node2 8003 node5 8006 node3 8004"]
 
   node11:
     build: .
@@ -127,10 +131,10 @@ services:
     networks:
       - test-net
     depends_on:
+      - node8
       - node4
-      - node2
-      - node9
-    command: ["sh", "-c", "sleep 3 && ./user 8012 node4 8005 node2 8003 node9 8010"]
+      - node1
+    command: ["sh", "-c", "sleep 4 && ./user 8012 node8 8009 node4 8005 node1 8002"]
 
   node12:
     build: .
@@ -139,10 +143,10 @@ services:
     networks:
       - test-net
     depends_on:
+      - node5
+      - node9
       - node1
-      - node11
-      - node10
-    command: ["sh", "-c", "sleep 3 && ./user 8013 node1 8002 node11 8012 node10 8011"]
+    command: ["sh", "-c", "sleep 5 && ./user 8013 node5 8006 node9 8010 node1 8002"]
 
   node13:
     build: .
@@ -151,10 +155,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node8
-      - node2
+      - node11
       - node10
-    command: ["sh", "-c", "sleep 3 && ./user 8014 node8 8009 node2 8003 node10 8011"]
+      - node6
+    command: ["sh", "-c", "sleep 5 && ./user 8014 node11 8012 node10 8011 node6 8007"]
 
   node14:
     build: .
@@ -163,10 +167,10 @@ services:
     networks:
       - test-net
     depends_on:
+      - node0
       - node6
-      - node8
-      - node11
-    command: ["sh", "-c", "sleep 3 && ./user 8015 node6 8007 node8 8009 node11 8012"]
+      - node13
+    command: ["sh", "-c", "sleep 5 && ./user 8015 node0 8001 node6 8007 node13 8014"]
 
   node15:
     build: .
@@ -176,9 +180,9 @@ services:
       - test-net
     depends_on:
       - node9
-      - node13
-      - node7
-    command: ["sh", "-c", "sleep 3 && ./user 8016 node9 8010 node13 8014 node7 8008"]
+      - node3
+      - node12
+    command: ["sh", "-c", "sleep 5 && ./user 8016 node9 8010 node3 8004 node12 8013"]
 
   node16:
     build: .
@@ -187,10 +191,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node10
-      - node8
-      - node4
-    command: ["sh", "-c", "sleep 3 && ./user 8017 node10 8011 node8 8009 node4 8005"]
+      - node13
+      - node6
+      - node14
+    command: ["sh", "-c", "sleep 6 && ./user 8017 node13 8014 node6 8007 node14 8015"]
 
   node17:
     build: .
@@ -199,10 +203,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node6
-      - node1
-      - node3
-    command: ["sh", "-c", "sleep 3 && ./user 8018 node6 8007 node1 8002 node3 8004"]
+      - node11
+      - node8
+      - node7
+    command: ["sh", "-c", "sleep 6 && ./user 8018 node11 8012 node8 8009 node7 8008"]
 
   node18:
     build: .
@@ -211,10 +215,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node10
-      - node3
       - node7
-    command: ["sh", "-c", "sleep 3 && ./user 8019 node10 8011 node3 8004 node7 8008"]
+      - node14
+      - node16
+    command: ["sh", "-c", "sleep 6 && ./user 8019 node7 8008 node14 8015 node16 8017"]
 
   node19:
     build: .
@@ -223,10 +227,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node18
-      - node3
-      - node17
-    command: ["sh", "-c", "sleep 3 && ./user 8020 node18 8019 node3 8004 node17 8018"]
+      - node0
+      - node16
+      - node9
+    command: ["sh", "-c", "sleep 6 && ./user 8020 node0 8001 node16 8017 node9 8010"]
 
 networks:
   test-net:

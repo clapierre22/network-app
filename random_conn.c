@@ -39,18 +39,18 @@ int main(int argc, char* argv[])
 		fprintf(fp, "    networks:\n");
 		fprintf(fp, "      - test-net\n");	
 		
-		if (i > 1)
+		if (i > 0)
 		{
 			int* avail, select;
 			int conn_count, avail_count;
 
-			avail_count = i - 1;
+			avail_count = i;
 			conn_count = (DIRECT_NODES < avail_count) ? DIRECT_NODES : avail_count;
 			avail = malloc(avail_count * sizeof(int));
 
 			for (int j = 0; j < avail_count; j++)
 			{
-				avail[j] = j + 1;
+				avail[j] = j;
 			}
 
 			shuffle(avail, avail_count);
@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 				fprintf(fp, "      - node%d\n", avail[x]);
 			}
 
-			fprintf(fp, "    command: [\"sh\", \"-c\", \"sleep 3 && ./user %d", port);
+			fprintf(fp, "    command: [\"sh\", \"-c\", \"sleep %d && ./user %d", 2 + (i / 4), port);
 			for (int y = 0; y < conn_count; y++)
 			{
 				int peer_idx = avail[y];

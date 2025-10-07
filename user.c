@@ -123,7 +123,12 @@ void deserialize_table(nav_table_t* table, char* buff)
 void share_routing_table(char* host, int port)
 {
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0) error("Error creating socket");
+	if (sockfd < 0) 
+	{
+		fprintf(stderr, "[Gossip] Error opening socket\n");
+		close(sockfd);
+		return;
+	}
 
 	struct hostent* h = gethostbyname(host);
 	if (h == NULL)
@@ -141,7 +146,8 @@ void share_routing_table(char* host, int port)
 	if (connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
 	{
 		close(sockfd);
-		error("Error connecting to socket");
+		fprintf(stderr, "[Gossip] Error connecting to socket\n");
+		return;
 	}
 
 	char buff[BUFF_MAX];
@@ -320,7 +326,7 @@ void run_da(uni_table_t* uni_table, nav_table_t* this_table)
 	pthread_mutex_unlock(&table_mutex);
 }
 
-void gossip(user_info_t host, user_info_t user)
+void gossip(user_info_t host, user_info_t user, bool is_client)
 {
 	pthread_mutex_lock(&user_mutex);
 
@@ -339,22 +345,25 @@ void gossip(user_info_t host, user_info_t user)
 		direct_users[direct_count] = user;
 		direct_users[direct_count].connected = true;
 
-		nav_route_t direct_route = create_route(
-						host, user, user, 1);
-		update_nav_table(
-			&this_nav_table, direct_route, direct_count);
+		nav_route_t direct_route = create_route(host, user, user, 1);
+		update_nav_table(&this_nav_table, direct_route, direct_count);
 		direct_count++;
 
 		printf("[Gossip] Added direct connection to %s:%d\n",
 				user.hostname, user.port);
 
 		update_uni_table(&this_nav_table);
-		share_routing_table(user.hostname, user.port);
+		
+		// Only share if requested (from client side)
+		if (is_client)
+		{
+			share_routing_table(user.hostname, user.port);
+		}
+		
 		run_da(&routing_table, &this_nav_table);
 	}
 
-	pthread_mutex_unlock(&user_mutex);
-}
+	pthread_mutex_unlock(&user_mutex);}
 
 void* handle_user(void* arg)
 {
@@ -408,7 +417,7 @@ void* handle_user(void* arg)
 		host.port = this_port;
 		host.connected = true;
 
-		gossip(host, peer);
+		gossip(host, peer, false);
 
 		char* msg = "ACK";
 		n = write(user_sockfd, msg, strlen(msg));
@@ -465,20 +474,31 @@ void* client_thread(void* arg)
 	// TODO: edit solution to take three direct peers
 	// IDEA: maybe have all direct peers be within the same container, 
 	// then they each have a connection to a different container
-	char* host = ((char**)arg)[0];
-	int port = atoi(((char**)arg)[1]);
+	//char* host = ((char**)arg)[0];
+	//int port = atoi(((char**)arg)[1]);
+	char** args = (char**)arg;
+        char* host = args[0];
+        int port = atoi(args[1]);
 	int count = 0;
 	int user_id = port;
+	bool connected = false;
+	bool running = true;
+	int retry_count = 0;
 
 	//char** argv = (char**)arg;
+	printf("[DEBUG] client_thread starting: host=%s, port_str=%s, port=%d\n", 
+               host, args[1], port);
 
+	free(args);
 
-	while(RUNNING)
+	while(running && !connected && retry_count < MAX_RETRIES)
 	{
 		int client_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 		if (client_sockfd < 0) 
 		{
 			perror("Error creating client socket");
+			retry_count++;
+			sleep(1);
 			break;
 		}
 
@@ -487,8 +507,10 @@ void* client_thread(void* arg)
 
 		if (h == NULL)
 		{
-			perror("Error retrieving host by name");
+			//perror("Error retrieving host by name");
+			fprintf(stderr, "Error resolving hostname: %s\n", host);
 			close(client_sockfd);
+			retry_count++;
 			sleep(1);
 			continue;
 		}
@@ -502,8 +524,9 @@ void* client_thread(void* arg)
 			client_sockfd, 
 			(struct sockaddr*)&addr, sizeof(addr)) < 0)
 		{
-			perror("Error connecting to socket");
+			//perror("Error connecting to socket");
 			close(client_sockfd);
+			retry_count++;
 			sleep(1);
 			continue;
 		}
@@ -533,19 +556,30 @@ void* client_thread(void* arg)
 				this_host.port = this_port;
 				this_host.connected = true;
 
-				gossip(this_host, peer);
+				gossip(this_host, peer, true);
 			}
 		}
 
 		close(client_sockfd);
+		connected = true;
 		sleep(1);
 	}
+
+	if (!connected)
+        {
+                fprintf(stderr, 
+		"[Warning] Failed to connect to %s:%d after %d retries\n", 
+                        host, port, MAX_RETRIES);
+        }
 
 	return NULL;
 }
 
 int main(int argc, char* argv[])
 {
+	setbuf(stdout, NULL);
+	setbuf(stderr, NULL);
+
 	printf("Good build\n");
 
 	if (argc < 2) 
@@ -562,11 +596,29 @@ int main(int argc, char* argv[])
 
 	if (argc >= 4)
 	{
+		// Prevent duplicate threads
 		sleep(1);
-		char* user_args[] = {argv[2], argv[3]};
-		pthread_t client_t;
-		pthread_create(&client_t, NULL, client_thread, user_args);
-		pthread_detach(client_t);
+		// Count peers by pairs (hostname, port)
+		int num_peers = (argc - 2) / 2;
+
+		printf("[DEBUG] argc=%d, num_peers=%d\n", argc, num_peers);
+
+		for (int i = 0; i < num_peers; i++)
+		{
+			char** user_args = malloc(2 * sizeof(char*));
+			// Hostname
+			user_args[0] = argv[2 + i * 2];
+			// Port
+			user_args[1] = argv[2 + i * 2 + 1];
+
+			pthread_t client_t;
+			pthread_create(&client_t, NULL, client_thread, user_args);
+			pthread_detach(client_t);
+		}
+		//char* user_args[] = {argv[2], argv[3]};
+		//pthread_t client_t;
+		//pthread_create(&client_t, NULL, client_thread, user_args);
+		//pthread_detach(client_t);
 	}
 
 	pthread_join(server_t, NULL);
