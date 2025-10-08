@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 	FILE *fp;
 	char* peers[DIRECT_NODES * 10];
 
-	fp = fopen("compose.yaml", "w");
+	fp = fopen("C:\\Users\\calvi\\docker\\network-app\\docker\\compose.yaml", "w");
 
 	fprintf(fp, "services:\n");
 	
@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
 		int port;
 		port = BASE_PORT + i;
 		fprintf(fp, "  node%d:\n", i);
-		fprintf(fp, "    build: .\n");
+		fprintf(fp, "    build:\n");
 		fprintf(fp, "      context: ..\n");
 		fprintf(fp, "      dockerfile: docker/Dockerfile\n");
 		fprintf(fp, "    container_name: node%d\n", i);

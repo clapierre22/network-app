@@ -1,6 +1,6 @@
 services:
   node0:
-    build:
+    build: .
       context: ..
       dockerfile: docker/Dockerfile
     container_name: node0
@@ -10,7 +10,7 @@ services:
     command: ["./build/user", "8001"]
 
   node1:
-    build:
+    build: .
       context: ..
       dockerfile: docker/Dockerfile
     container_name: node1
@@ -22,7 +22,7 @@ services:
     command: ["sh", "-c", "sleep 2 && ./build/user 8002 node0 8001"]
 
   node2:
-    build:
+    build: .
       context: ..
       dockerfile: docker/Dockerfile
     container_name: node2
@@ -35,7 +35,7 @@ services:
     command: ["sh", "-c", "sleep 2 && ./build/user 8003 node1 8002 node0 8001"]
 
   node3:
-    build:
+    build: .
       context: ..
       dockerfile: docker/Dockerfile
     container_name: node3
@@ -43,13 +43,13 @@ services:
     networks:
       - test-net
     depends_on:
-      - node1
       - node2
+      - node1
       - node0
-    command: ["sh", "-c", "sleep 2 && ./build/user 8004 node1 8002 node2 8003 node0 8001"]
+    command: ["sh", "-c", "sleep 2 && ./build/user 8004 node2 8003 node1 8002 node0 8001"]
 
   node4:
-    build:
+    build: .
       context: ..
       dockerfile: docker/Dockerfile
     container_name: node4
@@ -58,12 +58,12 @@ services:
       - test-net
     depends_on:
       - node1
-      - node3
       - node2
-    command: ["sh", "-c", "sleep 3 && ./build/user 8005 node1 8002 node3 8004 node2 8003"]
+      - node3
+    command: ["sh", "-c", "sleep 3 && ./build/user 8005 node1 8002 node2 8003 node3 8004"]
 
   node5:
-    build:
+    build: .
       context: ..
       dockerfile: docker/Dockerfile
     container_name: node5
@@ -71,10 +71,10 @@ services:
     networks:
       - test-net
     depends_on:
-      - node1
-      - node4
       - node0
-    command: ["sh", "-c", "sleep 3 && ./build/user 8006 node1 8002 node4 8005 node0 8001"]
+      - node2
+      - node4
+    command: ["sh", "-c", "sleep 3 && ./build/user 8006 node0 8001 node2 8003 node4 8005"]
 
 networks:
   test-net:
