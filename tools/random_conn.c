@@ -34,6 +34,8 @@ int main(int argc, char* argv[])
 		port = BASE_PORT + i;
 		fprintf(fp, "  node%d:\n", i);
 		fprintf(fp, "    build: .\n");
+		fprintf(fp, "      context: ..\n");
+		fprintf(fp, "      dockerfile: docker/Dockerfile\n");
 		fprintf(fp, "    container_name: node%d\n", i);
 		fprintf(fp, "    hostname: node%d\n", i);
 		fprintf(fp, "    networks:\n");
@@ -61,7 +63,7 @@ int main(int argc, char* argv[])
 				fprintf(fp, "      - node%d\n", avail[x]);
 			}
 
-			fprintf(fp, "    command: [\"sh\", \"-c\", \"sleep %d && ./user %d", 2 + (i / 4), port);
+			fprintf(fp, "    command: [\"sh\", \"-c\", \"sleep %d && ./build/user %d", 2 + (i / 4), port);
 			for (int y = 0; y < conn_count; y++)
 			{
 				int peer_idx = avail[y];
@@ -72,7 +74,7 @@ int main(int argc, char* argv[])
 
 			free(avail);
 		} else {
-			fprintf(fp, "    command: [\"./user\", \"%d\"]\n", port);
+			fprintf(fp, "    command: [\"./build/user\", \"%d\"]\n", port);
 		}
 		fprintf(fp, "\n");
 	}

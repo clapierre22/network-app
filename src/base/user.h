@@ -100,7 +100,7 @@ user_info_t find_next(
 void run_da(uni_table_t* uni_table, nav_table_t* this_table);
 
 void gossip(user_info_t host, user_info_t user, bool is_client);
-void search_direct(user_info_t host);
+//void search_direct(user_info_t host);
 
 void* handle_user(void* arg);
 void* server_thread(void* arg);

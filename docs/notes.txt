@@ -9,7 +9,13 @@ TODO:
 	Peer files connect to eachother over docker DONE
 	Create data structures for direct peers and nav table DONE
 	Implement D's A to find optimal route DONE
-	
+	Organize project structure (split into multiple files, directories)
+	Change dockerfile/whatever to run rand_conn.c before accessing 
+	compose.yaml automatically
+	Implement "end game" (stop pinging when all peers are connected)
+	After end game, program should then produce graphs for each peer as
+	well as the computed D's A for a given route
+	Implement other data types being passed by the peers
 
 System:
 	"General" ping (includes Setup and Communicate)
