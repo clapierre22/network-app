@@ -17,6 +17,7 @@ tools: configure
 clean:
 	rm -rf $(BUILD_DIR)
 
+# Docker commands
 docker-build:
 	docker-compose -f docker/compose.yaml build
 
@@ -28,6 +29,15 @@ docker-down:
 
 docker-logs:
 	docker-compose -f docker/compose.yaml logs
+
+docker-stop:
+	docker-compose -f docker/compose.yaml stop
+
+docker-start:
+	docker-compose -f docker/compose.yaml start
+
+docker-restart:
+	docker-compose -f docker/compose.yamle restart
 
 # Generate random connections
 generate-compose: tools

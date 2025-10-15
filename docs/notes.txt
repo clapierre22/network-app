@@ -10,7 +10,9 @@ TODO:
 	Create data structures for direct peers and nav table DONE
 	Implement D's A to find optimal route DONE
 	Organize project structure (split into multiple files, directories)
-	Change dockerfile/whatever to run rand_conn.c before accessing 
+	DONE
+	Implement cmake, Makefile DONE
+>>	Change dockerfile/whatever to run rand_conn.c before accessing 
 	compose.yaml automatically
 	Implement "end game" (stop pinging when all peers are connected)
 	After end game, program should then produce graphs for each peer as
@@ -37,6 +39,14 @@ System:
 		- Peers only know where data came from, and next hop peer
 	- Recieve ACK
 	- Disconnect
+
+Other:
+	Maybe have a central sdn controller that performs all the routing
+	calculations to avoid having to create and maintain routing 
+	protocols.
+	Implement match + action logic more accurately
+	All peers are middleboxes
+	Look into openflow sdn, nfvs
 
 In the end:
 	Create system test that automatically takes a random destination 

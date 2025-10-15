@@ -74,9 +74,11 @@ typedef struct
 //	packet_type_t type;
 //} packet_t;
 
+//
 void error(const char* msg);
 void status(const char* msg);
-
+//
+//
 nav_route_t create_route(
 		user_info_t host, 
 		user_info_t dest, 
@@ -85,11 +87,13 @@ nav_route_t create_route(
 bool table_exists(int host_port);
 void update_nav_table(nav_table_t* nav_table, nav_route_t new_route, int i);
 void update_uni_table(nav_table_t* new_table);
-
+//
+//
 void serialize_table(nav_table_t* table, char* buff);
 void deserialize_table(nav_table_t* table, char* buff);
 void share_routing_table(char* host, int port);
-
+//
+//
 int find_node_index(user_info_t* nodes, int node_count, int port);
 int find_node(user_info_t* nodes, int count, int port);
 int build_graph(uni_table_t* uni_table, user_info_t* nodes, 
@@ -97,14 +101,21 @@ int build_graph(uni_table_t* uni_table, user_info_t* nodes,
 int min_distance(int dist[], int spt_set[], int node_count);
 user_info_t find_next(
 		int src[], user_info_t* nodes, int src_idx, int dest_idx);
+//
+//
 void run_da(uni_table_t* uni_table, nav_table_t* this_table);
-
+//
+//
 void gossip(user_info_t host, user_info_t user, bool is_client);
 //void search_direct(user_info_t host);
 
 void* handle_user(void* arg);
 void* server_thread(void* arg);
 void* client_thread(void* arg);
+//
+
+//#define V 4
+//void display_matrix(int m[V][V]); // TODO: implement visual of graph
 
 int main(int argc, char* argv[]);
 

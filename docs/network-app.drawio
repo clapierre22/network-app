@@ -1,0 +1,64 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" version="28.2.4">
+  <diagram name="Page-1" id="gzTajNJHG1G7uwRtW8cB">
+    <mxGraphModel dx="1042" dy="562" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="KjGzqVrstOs4QltDUNIS-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-5" target="KjGzqVrstOs4QltDUNIS-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-5" target="KjGzqVrstOs4QltDUNIS-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-5" target="KjGzqVrstOs4QltDUNIS-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-5" value="User" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="120" y="120" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-6" target="KjGzqVrstOs4QltDUNIS-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-6" target="KjGzqVrstOs4QltDUNIS-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-6" value="User" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="350" y="120" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-7" target="KjGzqVrstOs4QltDUNIS-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-7" value="User" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="120" y="320" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-8" target="KjGzqVrstOs4QltDUNIS-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-8" value="User" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="350" y="320" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-11" value="User" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="580" y="320" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-12" target="KjGzqVrstOs4QltDUNIS-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="KjGzqVrstOs4QltDUNIS-12" target="KjGzqVrstOs4QltDUNIS-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="750" y="145" />
+              <mxPoint x="750" y="420" />
+              <mxPoint x="175" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-12" value="User" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="580" y="120" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="KjGzqVrstOs4QltDUNIS-22" value="List of direct neighbors&lt;div&gt;Create graph by gossip with neighbors to find their neighbors&lt;/div&gt;&lt;div&gt;When need to route, find route through D&#39;s A then contact the direct neighbor and tell them to pass on msg&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="110" y="445" width="590" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
