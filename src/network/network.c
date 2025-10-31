@@ -190,7 +190,7 @@ void* client_thread(void* arg)
 				ANSI_GREEN,
 				port,
 				ANSI_RESET);
-		user_info_t peer, this_host;
+		user_data_t* peer, this_host;
 		strcpy(peer.hostname, host);
 		peer.port = port;
 		peer.connected = true;
@@ -200,6 +200,7 @@ void* client_thread(void* arg)
 		this_host.connected = true;
 
 		// TODO: Fix gossip logic
+		gossip(this_host, peer);
 	}
 
 	if (!connected)

@@ -5,6 +5,19 @@ End goal: Communicate between various peers that have at most 3 direct
 	utilizing a sepearate docker container on one docker network.
 	
 TODO:
+	REFORMAT
+	Keep gossip() simple, util packet implementation, just perform
+	the given OR bitwise operation on both the host and client
+	tables, which will quickly share the graph. Next issue is
+	figuring out how to run this multiple times until all peers
+	are connected (could either be keep pinging neighbors utilizing
+	sleep() to share rts throughout system until no change is
+	detected, Or just share whenever communicating)
+		BOTH: Initially have gossip run on all direct peers
+		direct_count * direct_count times, making sure to not
+		run on the same direct twice. This should share all 
+		rts within a few loops
+	
 	Build test DONE
 	Peer files connect to eachother over docker DONE
 	Create data structures for direct peers and nav table DONE

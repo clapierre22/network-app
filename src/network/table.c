@@ -11,7 +11,13 @@
 
 void serialize_table(nav_table_t* table, char* buff)
 {
-	table->nav_graph[][];
+	for (int x = 0; x < MAX_TOTAL_USERS; x++)
+	{
+		for (int y = 0; y < MAX_TOTAL_USERS; y++)
+		{
+			break;
+		}
+	}
 }
 
 void deserialize_table(nav_table_t* table, char* buff)

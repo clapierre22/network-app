@@ -3,83 +3,11 @@
 /*
  * Global Variables
  */
-user_info_t direct_users[MAX_DIRECT_USERS];
-int direct_count = 0;
-int this_port = 0;
+user_t* direct_users;
+user_data_t* this_user;
 int this_sockfd;
 pthread_mutex_t user_mutex = PTHREAD_MUTEX_INITIALIZER;
-nav_table_t this_nav_table;
-uni_table_t routing_table;
-int rt_count = 0;
 pthread_mutex_t table_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-void error(const char* msg)
-{
-	fprintf(stderr, "%s[Error]%s %s\n", ANSI_RED, ANSI_RESET, msg);
-	exit(1);
-}
-
-void status(const char* msg)
-{
-	// TODO
-}
-
-nav_route_t create_route(
-	user_info_t host, user_info_t dest, user_info_t next, int step)
-{
-	nav_route_t route;
-
-	route.host = host;
-	route.dest = dest;
-	route.next = next;
-	route.step = step;
-
-	return route;
-}
-
-void update_nav_table(nav_table_t* nav_table, nav_route_t new_route, int i)
-{
-	if (i < 0 || i > MAX_DIRECT_USERS) error("Invalid index");
-	nav_table->routes[i] = new_route;
-}
-
-bool table_exists(int host_port)
-{
-	for (int i = 0; i < rt_count; i++)
-	{
-		if (routing_table.tables[i].routes[0].host.port == host_port) return true;
-	}
-
-	return false;
-}
-
-void update_uni_table(nav_table_t* new_table)
-{
-	pthread_mutex_lock(&table_mutex);
-
-	// If table is empty or already exists, don't add
-	if (new_table->routes[0].host.port == 0)
-	{
-		#ifdef DEBUG
-			printf("[DEBUG] Table is empty or already exists\n");
-		#endif
-		pthread_mutex_unlock(&table_mutex);
-		return;
-	}
-
-	if (rt_count < MAX_TOTAL_USERS
-		&& !table_exists(new_table->routes[0].host.port))
-	{
-		routing_table.tables[rt_count] = *new_table;
-		rt_count++;
-
-		printf("%s[Routing]%s Added routing table from port %d (total: %d tables)\n",
-                       ANSI_GREEN, ANSI_RESET, 
-		       new_table->routes[0].host.port, rt_count);
-	}
-
-	pthread_mutex_unlock(&table_mutex);
-}
 
 void serialize_table(nav_table_t* table, char* buff)
 {
@@ -167,105 +95,6 @@ void share_routing_table(char* host, int port)
 	printf("[Gossip] Shared routing table with %s:%d\n", host, port);
 }
 
-int find_node_index(user_info_t* nodes, int node_count, int port)
-{
-	for (int i = 0; i < node_count; i++)
-	{
-		if(nodes[i].port == port) return i;
-	}
-
-	return(-1);
-}
-
-int find_node(user_info_t* nodes, int count, int port)
-{
-	for (int i = 0; i < count; i++) if (nodes[i].port == port) return i;
-
-	return(-1);
-}
-
-int build_graph(uni_table_t* uni_table, user_info_t* nodes,
-		int graph[MAX_TOTAL_USERS][MAX_TOTAL_USERS])
-{
-	int node_count = 0;
-
-	// Init graph matrix to 0
-	memset(graph, 0, sizeof(int) * MAX_TOTAL_USERS * MAX_TOTAL_USERS);
-
-	// Build adjanceny matix from routing table
-	for (int t = 0; t < rt_count; t++)
-	{
-		for (int r = 0; r < MAX_DIRECT_USERS; r++)
-		{
-			nav_route_t route = uni_table->tables[t].routes[r];
-
-			// Skip routes that are unitialized
-			if (route.dest.port == 0) continue;
-
-			// Add host node if not initalized
-			int host_idx = find_node_index(
-					nodes, node_count, route.host.port);
-			if (host_idx < 0 && node_count < MAX_TOTAL_USERS)
-			{
-				nodes[node_count] = route.host;
-				host_idx = node_count++;
-			}
-
-			// Add dest node
-			int dest_idx = find_node_index(
-					nodes, node_count, route.dest.port);
-			if (dest_idx < 0 && node_count < MAX_TOTAL_USERS)
-			{
-				nodes[node_count] = route.dest;
-				dest_idx = node_count++;
-			}
-			
-			// Add edge to adjacency matrix
-			if (host_idx >= 0 && dest_idx >= 0)
-			{
-				graph[host_idx][dest_idx] = 1;
-			}
-		}
-	}
-
-	return node_count;
-}
-
-int min_distance(int dist[], int spt_set[], int node_count)
-{
-	int min = INT_MAX;
-	int min_idx = -1;
-
-	// Find minimum distance vertex not yet in tree
-	for (int i = 0; i < node_count; i++)
-	{
-		if (spt_set[i] == 0 && dist[i] <= min)
-		{
-			min = dist[i];
-			min_idx = i;
-		}
-	}
-
-	return min_idx;
-}
-
-user_info_t find_next(
-		int src[], user_info_t* nodes, int src_idx, int dest_idx)
-{
-	// Find first jump from src
-	int curr = dest_idx;
-	int prev = src[curr];
-
-	// Walk until node parent is src
-	while (prev != src_idx && prev != -1)
-	{
-		curr = prev;
-		prev = src[curr];
-	}
-
-	return nodes[curr];
-}
-
 void run_da(uni_table_t* uni_table, nav_table_t* this_table)
 {
 	pthread_mutex_lock(&table_mutex);
@@ -332,46 +161,64 @@ void run_da(uni_table_t* uni_table, nav_table_t* this_table)
 	pthread_mutex_unlock(&table_mutex);
 }
 
-void gossip(user_info_t host, user_info_t user, bool is_client)
+void gossip(user_data_t host, user_data_t user)
 {
 	pthread_mutex_lock(&user_mutex);
-
-	bool connected = false;
-	for (int i = 0; i < direct_count; i++)
+	
+	for (int i = 0; i < MAX_TOTAL_USERS; i++);
 	{
-		if (direct_users[i].port == user.port)
+		for (int j = 0; j < MAX_TOTAL_USERS; j++);
 		{
-			connected = true;
-			break;
+			host->routing_table.nav_graph[i][j] | user->routing_table.nav_graph[i][j];
+			user->routing_table.nav_graph[i][j] | host->routing_table.nav_graph[i][j];
+			// Note: Since both host and user should call gossip when connecting, maybe only do the host, user table switch?
 		}
 	}
 
-	if (!connected && direct_count < MAX_DIRECT_USERS)
-	{
-		direct_users[direct_count] = user;
-		direct_users[direct_count].connected = true;
-
-		nav_route_t direct_route = create_route(host, user, user, 1);
-		update_nav_table(&this_nav_table, direct_route, direct_count);
-		direct_count++;
-
-		printf("[Gossip] Added direct connection to %s:%d\n",
-				user.hostname, user.port);
-// Runs to here at least
-		pthread_mutex_unlock(&user_mutex);
-		update_uni_table(&this_nav_table);
-		
-		// Only share if requested (from client side)
-		//if (is_client)
-		//{
-		//	share_routing_table(user.hostname, user.port);
-		//}
-		
-		run_da(&routing_table, &this_nav_table);
-	} else {
-		pthread_mutex_unlock(&user_mutex);
-	}
+	// Call D's A here?
+	
+	pthread_mutex_unlock(&user_mutex);
 }
+
+//{
+//	pthread_mutex_lock(&user_mutex);
+//
+//	bool connected = false;
+//	for (int i = 0; i < direct_count; i++)
+//	{
+//		if (direct_users[i].port == user.port)
+//		{
+//			connected = true;
+//			break;
+//		}
+//	}
+//
+//	if (!connected && direct_count < MAX_DIRECT_USERS)
+//	{
+//		direct_users[direct_count] = user;
+//		direct_users[direct_count].connected = true;
+//
+//		nav_route_t direct_route = create_route(host, user, user, 1);
+//		update_nav_table(&this_nav_table, direct_route, direct_count);
+//		direct_count++;
+//
+//		printf("[Gossip] Added direct connection to %s:%d\n",
+//				user.hostname, user.port);
+// Runs to here at least
+//		pthread_mutex_unlock(&user_mutex);
+//		update_uni_table(&this_nav_table);
+//		
+//		// Only share if requested (from client side)
+//		//if (is_client)
+//		//{
+//		//	share_routing_table(user.hostname, user.port);
+//		//}
+//		
+//		run_da(&routing_table, &this_nav_table);
+//	} else {
+//		pthread_mutex_unlock(&user_mutex);
+//	}
+//}
 
 void* handle_user(void* arg)
 {
@@ -593,8 +440,8 @@ void* client_thread(void* arg)
 		this_host.port = this_port;
 		this_host.connected = true;
 // PROBLEM HERE
-		// Share routing table
-		gossip(this_host, peer, true);
+		// Connected? Share routing table
+		gossip(this_user, peer);
 		#ifdef DEBUG
 			printf("[DEBUG] Shared routing table from %s to %s:%d\n", this_host.hostname, host, port);
 		#endif
@@ -667,19 +514,18 @@ int main(int argc, char* argv[])
 	if (argc < 2) 
 		error("Usage: [this_port] [user_hostname] [user_port]");
 
-	int port = atoi(argv[1]);
-	this_port = port;
+	this_user->user.port = atoi(argv[1]);	
 
-	memset(&this_nav_table, 0, sizeof(nav_table_t));
-	memset(&routing_table, 0, sizeof(uni_table_t));
+	memset(&this_user->routing_table.nav_graph, 0, sizeof(nav_table_t));
 
 	pthread_t server_t;
-	pthread_create(&server_t, NULL, server_thread, &port);
+	pthread_create(&server_t, NULL, server_thread, &this_user->user.port);
 
 	if (argc >= 4)
 	{
 		// Prevent duplicate threads
 		sleep(1);
+
 		// Count peers by pairs (hostname, port)
 		int num_peers = (argc - 2) / 2;
 
@@ -697,10 +543,6 @@ int main(int argc, char* argv[])
 			pthread_create(&client_t, NULL, client_thread, user_args);
 			pthread_detach(client_t);
 		}
-		//char* user_args[] = {argv[2], argv[3]};
-		//pthread_t client_t;
-		//pthread_create(&client_t, NULL, client_thread, user_args);
-		//pthread_detach(client_t);
 	}
 
 	pthread_join(server_t, NULL);
