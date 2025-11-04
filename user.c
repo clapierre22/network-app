@@ -1,376 +1,85 @@
 #include "user.h"
 
+// TODO:
+// - Combine client_thread, server_thread; or otherwise utilize
+// 	handle_user more than the other two as there should be one 
+// 	connection/thread
+
 /*
  * Global Variables
  */
-user_info_t direct_users[MAX_DIRECT_USERS];
-int direct_count = 0;
+//user_t direct_users[MAX_DIRECT_USERS];
 int this_port = 0;
 int this_sockfd;
-pthread_mutex_t user_mutex = PTHREAD_MUTEX_INITIALIZER;
-nav_table_t this_nav_table;
-uni_table_t routing_table;
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 int rt_count = 0;
-pthread_mutex_t table_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void error(const char* msg)
+//void gossip(user_info_t host, user_info_t user, bool is_client)
+//{
+//	pthread_mutex_lock(&mtx);
+
+//	pthread_mutex_unlock(&mtx);
+//}
+
+/*
+ * Retrieves user info and fills a user struct pointer
+ */
+int get_user_info(user_t* user, int sockfd, bool remote)
 {
-	fprintf(stderr, "%s[Error]%s %s\n", ANSI_RED, ANSI_RESET, msg);
-	exit(1);
-}
+	if (!user) fprintf(stderr, "Null user_t pointer\n");
 
-void status(const char* msg)
-{
-	// TODO
-}
-
-nav_route_t create_route(
-	user_info_t host, user_info_t dest, user_info_t next, int step)
-{
-	nav_route_t route;
-
-	route.host = host;
-	route.dest = dest;
-	route.next = next;
-	route.step = step;
-
-	return route;
-}
-
-void update_nav_table(nav_table_t* nav_table, nav_route_t new_route, int i)
-{
-	if (i < 0 || i > MAX_DIRECT_USERS) error("Invalid index");
-	nav_table->routes[i] = new_route;
-}
-
-bool table_exists(int host_port)
-{
-	for (int i = 0; i < rt_count; i++)
-	{
-		if (routing_table.tables[i].routes[0].host.port == host_port) return true;
-	}
-
-	return false;
-}
-
-void update_uni_table(nav_table_t* new_table)
-{
-	pthread_mutex_lock(&table_mutex);
-
-	// If table is empty or already exists, don't add
-	if (new_table->routes[0].host.port == 0)
-	{
-		#ifdef DEBUG
-			printf("[DEBUG] Table is empty or already exists\n");
-		#endif
-		pthread_mutex_unlock(&table_mutex);
-		return;
-	}
-
-	if (rt_count < MAX_TOTAL_USERS
-		&& !table_exists(new_table->routes[0].host.port))
-	{
-		routing_table.tables[rt_count] = *new_table;
-		rt_count++;
-
-		printf("%s[Routing]%s Added routing table from port %d (total: %d tables)\n",
-                       ANSI_GREEN, ANSI_RESET, 
-		       new_table->routes[0].host.port, rt_count);
-	}
-
-	pthread_mutex_unlock(&table_mutex);
-}
-
-void serialize_table(nav_table_t* table, char* buff)
-{
-	sprintf(buff, "ROUTES:");
-	for (int i = 0; i < MAX_DIRECT_USERS; i++)
-	{
-		nav_route_t* route = &table->routes[i];
-		if (route->dest.port == 0) continue;
-
-		sprintf(buff + strlen(buff), "|%s:%d->%s:%d",
-			route->host.hostname, route->host.port,
-			route->dest.hostname, route->dest.port);
-	}
-}
-
-void deserialize_table(nav_table_t* table, char* buff)
-{
-	memset(table, 0, sizeof(nav_table_t));
-
-	if (strncmp(buff, "ROUTES:", 7) != 0) return;
-
-	char* token = strtok(buff + 7, "|");
-	int idx = 0;
-
-	while (token!= NULL && idx < MAX_DIRECT_USERS)
-	{
-		user_info_t host, dest;
-
-		// Parse buffer: hostname:port->hostname:port
-		if (sscanf(token, "%[^:]:%d->%[^:]:%d",
-			host.hostname, &host.port,
-			dest.hostname, &dest.port) == 4)
-		{
-			host.connected = true;
-			dest.connected = true;
-			table->routes[idx++] = create_route(
-						host, dest, dest, 1);
-		}
-
-		token = strtok(NULL, "|");
-	}
-}
-
-void share_routing_table(char* host, int port)
-{
-	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0) 
-	{
-		fprintf(stderr, "[Gossip] Error opening socket\n");
-		close(sockfd);
-		return;
-	}
-
-	struct hostent* h = gethostbyname(host);
-	if (h == NULL)
-	{
-		#ifdef DEBUG
-			printf("[DEBUG] Host not found by name\n");
-		#endif
-		close(sockfd);
-		return;
-	}
-
+	// IP
 	struct sockaddr_in addr;
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	memcpy(&addr.sin_addr, h->h_addr, h->h_length);
-	addr.sin_port = htons(port);
-
-	if (connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+	socklen_t addr_len = sizeof(addr);
+	if (remote)
 	{
-		close(sockfd);
-		fprintf(stderr, "[Gossip] Error connecting to socket\n");
-		return;
-	}
-
-	char buff[BUFF_MAX];
-	pthread_mutex_lock(&user_mutex);
-	serialize_table(&this_nav_table, buff);
-	pthread_mutex_unlock(&user_mutex);
-
-	write(sockfd, buff, strlen(buff));
-	close(sockfd);
-
-	printf("[Gossip] Shared routing table with %s:%d\n", host, port);
-}
-
-int find_node_index(user_info_t* nodes, int node_count, int port)
-{
-	for (int i = 0; i < node_count; i++)
-	{
-		if(nodes[i].port == port) return i;
-	}
-
-	return(-1);
-}
-
-int find_node(user_info_t* nodes, int count, int port)
-{
-	for (int i = 0; i < count; i++) if (nodes[i].port == port) return i;
-
-	return(-1);
-}
-
-int build_graph(uni_table_t* uni_table, user_info_t* nodes,
-		int graph[MAX_TOTAL_USERS][MAX_TOTAL_USERS])
-{
-	int node_count = 0;
-
-	// Init graph matrix to 0
-	memset(graph, 0, sizeof(int) * MAX_TOTAL_USERS * MAX_TOTAL_USERS);
-
-	// Build adjanceny matix from routing table
-	for (int t = 0; t < rt_count; t++)
-	{
-		for (int r = 0; r < MAX_DIRECT_USERS; r++)
+		if (getpeername(sockfd, (struct sockaddr*)&addr, &addr_len) != 0)
 		{
-			nav_route_t route = uni_table->tables[t].routes[r];
-
-			// Skip routes that are unitialized
-			if (route.dest.port == 0) continue;
-
-			// Add host node if not initalized
-			int host_idx = find_node_index(
-					nodes, node_count, route.host.port);
-			if (host_idx < 0 && node_count < MAX_TOTAL_USERS)
-			{
-				nodes[node_count] = route.host;
-				host_idx = node_count++;
-			}
-
-			// Add dest node
-			int dest_idx = find_node_index(
-					nodes, node_count, route.dest.port);
-			if (dest_idx < 0 && node_count < MAX_TOTAL_USERS)
-			{
-				nodes[node_count] = route.dest;
-				dest_idx = node_count++;
-			}
-			
-			// Add edge to adjacency matrix
-			if (host_idx >= 0 && dest_idx >= 0)
-			{
-				graph[host_idx][dest_idx] = 1;
-			}
+			fprintf(stderr, "Unable to retrieve peer name\n");
+			strcpy(user->ip_addr, "0.0.0.0");
+			strcpy(user->hostname, "unknown_host");
+			return -1;
+		}
+	}
+	else
+	{
+		if (getsockname(sockfd, (struct sockaddr*)&addr, &addr_len) != 0)
+		{
+			fprintf(stderr, "Unable to retrieve local name\n");
+			strcpy(user->ip_addr, "0.0.0.0");
+			strcpy(user->hostname, "unknown_host");
+			return -1;
 		}
 	}
 
-	return node_count;
-}
-
-int min_distance(int dist[], int spt_set[], int node_count)
-{
-	int min = INT_MAX;
-	int min_idx = -1;
-
-	// Find minimum distance vertex not yet in tree
-	for (int i = 0; i < node_count; i++)
+	if (inet_ntop(AF_INET, &addr.sin_addr, user->ip_addr, IP_MAX) == NULL)
 	{
-		if (spt_set[i] == 0 && dist[i] <= min)
-		{
-			min = dist[i];
-			min_idx = i;
-		}
+		fprintf(stderr, "Unable to retrieve IP\n");
+		strcpy(user->ip_addr, "0.0.0.0");
+		strcpy(user->hostname, "unknown_host");
+		return -1;
 	}
 
-	return min_idx;
-}
+	// Hostname
+	struct hostent* host_entry = gethostbyaddr(
+        	&addr.sin_addr,
+        	sizeof(addr.sin_addr),
+        	AF_INET
+    	);
 
-user_info_t find_next(
-		int src[], user_info_t* nodes, int src_idx, int dest_idx)
-{
-	// Find first jump from src
-	int curr = dest_idx;
-	int prev = src[curr];
+    	if (host_entry != NULL && host_entry->h_name != NULL)
+    	{
+    	    strncpy(user->hostname, host_entry->h_name, HOSTNAME_MAX - 1);
+    	    user->hostname[HOSTNAME_MAX - 1] = '\0';
+    	}
+    	else
+    	{
+        	// Fallback: use IP as hostname
+        	strncpy(user->hostname, user->ip_addr, HOSTNAME_MAX - 1);
+    	    user->hostname[HOSTNAME_MAX - 1] = '\0';
+    	}
 
-	// Walk until node parent is src
-	while (prev != src_idx && prev != -1)
-	{
-		curr = prev;
-		prev = src[curr];
-	}
-
-	return nodes[curr];
-}
-
-void run_da(uni_table_t* uni_table, nav_table_t* this_table)
-{
-	pthread_mutex_lock(&table_mutex);
-
-	user_info_t nodes[MAX_TOTAL_USERS];
-	int graph[MAX_TOTAL_USERS][MAX_TOTAL_USERS];
-	int dist[MAX_TOTAL_USERS];
-	int visited[MAX_TOTAL_USERS];
-	int parent[MAX_TOTAL_USERS];
-
-	int node_count = build_graph(uni_table, nodes, graph);
-	int src = find_node(nodes, node_count, this_port);
-	
-	for (int i = 0; i < node_count; i++)
-	{
-		dist[i] = INT_MAX;
-		visited[i] = 0;
-		parent[i] = -1;
-	}
-
-	dist[src] = 0;
-	parent[src] = src;
-
-	// Dijkstra's Algorithim
-	for (int count = 0; count < (node_count - 1); count++)
-	{
-		int min = min_distance(dist, visited, node_count);
-		if (min == -1) break;
-
-		visited[min] = 1;
-
-		for (int v = 0; v < node_count; v++)
-		{
-			if (!visited[v] 
-				&& graph[min][v]
-				&& dist[min] != INT_MAX
-				&& dist[min] + graph[min][v] < dist[v])
-			{
-				dist[v] = dist[min] + graph[min][v];
-				parent[v] = min;
-			}
-		}
-	}
-
-	// Build routing table
-	int route_idx = 0;
-	user_info_t this_node = {.port = this_port};
-	strcpy(this_node.hostname, "localhost");
-
-	for (int i = 0; i < node_count && route_idx < MAX_DIRECT_USERS; i++)
-	{
-		if (i == src || dist[i] == INT_MAX) continue;
-
-		nav_route_t route = create_route(
-					this_node,
-					nodes[i],
-					find_next(parent, nodes, src, i),
-					dist[i]);
-		update_nav_table(this_table, route, route_idx++);
-	}
-
-	printf("[Dijkstra] Computed %d routes\n", route_idx);
-
-	pthread_mutex_unlock(&table_mutex);
-}
-
-void gossip(user_info_t host, user_info_t user, bool is_client)
-{
-	pthread_mutex_lock(&user_mutex);
-
-	bool connected = false;
-	for (int i = 0; i < direct_count; i++)
-	{
-		if (direct_users[i].port == user.port)
-		{
-			connected = true;
-			break;
-		}
-	}
-
-	if (!connected && direct_count < MAX_DIRECT_USERS)
-	{
-		direct_users[direct_count] = user;
-		direct_users[direct_count].connected = true;
-
-		nav_route_t direct_route = create_route(host, user, user, 1);
-		update_nav_table(&this_nav_table, direct_route, direct_count);
-		direct_count++;
-
-		printf("[Gossip] Added direct connection to %s:%d\n",
-				user.hostname, user.port);
-// Runs to here at least
-		pthread_mutex_unlock(&user_mutex);
-		update_uni_table(&this_nav_table);
-		
-		// Only share if requested (from client side)
-		//if (is_client)
-		//{
-		//	share_routing_table(user.hostname, user.port);
-		//}
-		
-		run_da(&routing_table, &this_nav_table);
-	} else {
-		pthread_mutex_unlock(&user_mutex);
-	}
+	return 0;
 }
 
 void* handle_user(void* arg)
@@ -383,75 +92,78 @@ void* handle_user(void* arg)
 	struct sockaddr_in user_addr;
 	socklen_t user_len = sizeof(user_addr);
 
-	if (getpeername(user_sockfd, (struct sockaddr*)&user_addr, &user_len) != 0) error("Peer not found");
+	user_t* from = calloc(1, sizeof(user_t));
+	user_t* to = calloc(1, sizeof(user_t));
 
-	n = read(user_sockfd, buff, BUFF_MAX - 1);
-	if (n < 0)
+	if (!from || !to) 
 	{
-		error("Error reading from socket");
+		perror("Failed to allocate memory");
+		free(from);
+		free(to);
 		close(user_sockfd);
 		return NULL;
 	}
 
-	buff[n] = '\0';
+	if (getpeername(user_sockfd, (struct sockaddr*)&user_addr, &user_len) != 0) perror("Peer not found");
+
+	packet_t* recv_pkt = packet_receive(user_sockfd);
+
+	if (get_user_info(from, user_sockfd, true) || get_user_info(to, user_sockfd, false))
+	{
+		fprintf(stderr, "Error retrieving user info\n");
+		free(from);
+		free(to);
+		close(user_sockfd);
+		return NULL;
+	}
+	
+//	strncpy(from->hostname, recv_pkt->header.from.hostname, HOSTNAME_MAX - 1);
+//	strncpy(from->ip_addr, recv_pkt->header.from.ip_addr, IP_MAX - 1);
+	from->port = recv_pkt->header.from.port;
+	from->connected = recv_pkt->header.from.connected;
+//	
+//	strncpy(to->hostname, recv_pkt->header.to.hostname, HOSTNAME_MAX - 1);
+//	strncpy(to->ip_addr, recv_pkt->header.to.ip_addr, IP_MAX - 1);
+	to->port = this_port;
+	to->connected = 1;
+	
+	switch (recv_pkt->header.type)
+	{
+		case (MSG):
+#ifdef DEBUG
+			printf("[User %s]->[User %s]: %s\n",
+					from->ip_addr,
+					to->ip_addr,
+					recv_pkt->data);
+#endif	
+			break;
+		case (ACK):
+#ifdef DEBUG
+			printf("[User %s]: ACK\n", 
+					from->ip_addr);
+#endif
+			break;
+		default:
+			printf("Warning: Unknown Packet Type\n");
+	}
 
 	// Check if gossip msg
-	if (strncmp(buff, "ROUTES:", 7) == 0)
+
+	packet_t* ack_pkt = packet_init(ACK, to, from, NULL, 0);
+	n = packet_send(user_sockfd, ack_pkt);
+	if (n < 0)
 	{
-		nav_table_t new_table;
-		deserialize_table(&new_table, buff);
-
-		if (new_table.routes[0].host.port != 0)
-		{
-			update_uni_table(&new_table);
-			printf("[Gossip] Recieved routing table from %s\n",
-					inet_ntoa(user_addr.sin_addr));
-
-			run_da(&routing_table, &this_nav_table);
-		}
-
-		// Send ACK
-		char* msg = "ACK";
-		n = write(user_sockfd, msg, strlen(msg));
-	} else {
-		printf("%s[User %s]%s %s\n",
-			ANSI_YELLOW,
-			inet_ntoa(user_addr.sin_addr),
-			ANSI_RESET,
-			buff);
-	
-		user_info_t peer, host;
-		strcpy(peer.hostname, inet_ntoa(user_addr.sin_addr));
-		peer.port = ntohs(user_addr.sin_port);
-		peer.connected = true;
-
-		gethostname(host.hostname, NAME_MAX); // Retrieves hostname from docker container
-		host.port = this_port;
-		host.connected = true;
-
-		gossip(host, peer, false);
-
-		// Respond with routing table
-		//char* msg = "ACK";
-		
-		char resp[BUFF_MAX];
-		pthread_mutex_lock(&user_mutex);
-		serialize_table(&this_nav_table, resp);
-		pthread_mutex_unlock(&user_mutex);
-
-		#ifdef DEBUG
-			printf("[DEBUG] Sending routing table: '%s' (%zu bytes)\n", resp, strlen(resp));
-		#endif
-
-		n = write(user_sockfd, resp, strlen(resp));
-		if (n < 0)
-		{
-			error("Error writing to socket");
-		} else {
-			printf("[Gossip] Sent routing table to %s\n", inet_ntoa(user_addr.sin_addr));
-		}
+		perror("Error sending ACK packet");
+		close(user_sockfd);
+		return NULL;
 	}
+
 	close(user_sockfd);
+	packet_free(recv_pkt);
+	packet_free(ack_pkt);
+	free(from);
+	free(to);
+
 	return NULL;
 }
 
@@ -461,7 +173,7 @@ void* server_thread(void* arg)
 	struct sockaddr_in addr;
 	
 	this_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (this_sockfd < 0) error("Error creating socket");
+	if (this_sockfd < 0) perror("Error creating socket");
 
 	int opt = 1;
 	setsockopt(
@@ -473,9 +185,9 @@ void* server_thread(void* arg)
 	addr.sin_port = htons(port);
 
 	if (bind(this_sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
-		error("Error binding socket");
+		perror("Error binding socket");
 
-	if (listen(this_sockfd, 10) < 0) error("Error listening on socket");
+	if (listen(this_sockfd, 10) < 0) perror("Error listening on socket");
 	printf("Listening on port %d\n", port);
 
 	while(RUNNING)
@@ -484,7 +196,7 @@ void* server_thread(void* arg)
 		*client_sockfd = accept(this_sockfd, NULL, NULL);
 		if (*client_sockfd < 0)
 		{
-			error("Error accepting user");
+			perror("Error accepting user");
 			free(client_sockfd);
 			continue;
 		}
@@ -502,11 +214,6 @@ void* server_thread(void* arg)
 
 void* client_thread(void* arg)
 {
-	// TODO: edit solution to take three direct peers
-	// IDEA: maybe have all direct peers be within the same container, 
-	// then they each have a connection to a different container
-	//char* host = ((char**)arg)[0];
-	//int port = atoi(((char**)arg)[1]);
 	char** args = (char**)arg;
         char* host = args[0];
         int port = atoi(args[1]);
@@ -516,7 +223,6 @@ void* client_thread(void* arg)
 	bool running = true;
 	int retry_count = 0;
 
-	//char** argv = (char**)arg;
 	#ifdef DEBUG
 		printf("[DEBUG] client_thread starting: host=%s, port_str=%s, port=%d\n", 
                host, args[1], port);
@@ -557,91 +263,100 @@ void* client_thread(void* arg)
 			client_sockfd, 
 			(struct sockaddr*)&addr, sizeof(addr)) < 0)
 		{
-			//perror("Error connecting to socket");
 			close(client_sockfd);
 			retry_count++;
 			sleep(1);
 			continue;
 		}
 
-		char* msg = "Test message";
-		if (write(client_sockfd, msg, strlen(msg)) < 0)
+		struct sockaddr_in peer_addr;
+		socklen_t peer_len = sizeof(peer_addr);
+		char peer_ip[INET_ADDRSTRLEN];
+		if (getpeername(client_sockfd, (struct sockaddr*)&peer_addr, &peer_len) == 0)
 		{
-			perror("Error writing to socket");
+			inet_ntop(AF_INET, &peer_addr.sin_addr, peer_ip, INET_ADDRSTRLEN);
+		}
+
+#ifdef DEBUG
+			printf("[DEBUG] Sent test message to %s:%d, waiting for response...\n", host, port);
+#endif
+
+		// TODO: Add ip_addr to peer, host
+	
+		user_t* peer = calloc(1, sizeof(user_t));
+		user_t* this_host = calloc(1, sizeof(user_t));
+		if (get_user_info(peer, client_sockfd, true) 
+			|| get_user_info(this_host, client_sockfd, false))
+		{
+			fprintf(stderr, "Error retrieving user info\n");
+			free(peer);
+			free(this_host);
 			close(client_sockfd);
 			retry_count++;
 			continue;
-		} 
+		}
 
-		#ifdef DEBUG
-			printf("[DEBUG] Sent test message to %s:%d, waiting for response...\n", host, port);
-		#endif
-		//else {
-			//char ack[BUFF_MAX];
-			//int n = read(client_sockfd, ack, BUFF_MAX - 1);
-	
-		printf("%s[Peer %d]%s Connected\n",
+//		strcpy(peer.hostname, host);
+		peer->port = port;
+		peer->connected = 1;
+//		
+//		gethostname(this_host.hostname, NAME_MAX);
+		this_host->port = this_port;
+		this_host->connected = 1;
+
+
+		char* msg = "Test Message";
+		packet_t* pkt = packet_init(MSG, this_host, peer, msg, (uint32_t)strlen(msg));
+
+		if (!pkt) 
+		{
+			fprintf(stderr, "Failed to create packet\n");
+			close(client_sockfd);
+			retry_count++;
+			continue;
+		}
+
+		int n = packet_send(client_sockfd, pkt);
+		if (n < 0)
+		{
+			close(client_sockfd);
+			packet_free(pkt);
+			retry_count++;
+			sleep(1);
+			continue;
+		}
+
+		printf("%s[User %s]%s->%s[User %s]%s: %s\n",
 			ANSI_GREEN,
-			user_id,
-			ANSI_RESET);
-		user_info_t peer, this_host;
-		strcpy(peer.hostname, host);
-		peer.port = port;
-		peer.connected = true;
-		
-		gethostname(this_host.hostname, NAME_MAX);
-		this_host.port = this_port;
-		this_host.connected = true;
-// PROBLEM HERE
+			this_host->ip_addr,
+			ANSI_RESET,
+			ANSI_YELLOW,
+			peer->ip_addr,
+			ANSI_RESET,
+			pkt->data);
+
+		packet_free(pkt);
+
 		// Share routing table
-		gossip(this_host, peer, true);
 		#ifdef DEBUG
-			printf("[DEBUG] Shared routing table from %s to %s:%d\n", this_host.hostname, host, port);
+			printf("[DEBUG] Shared Message from %s to %s:%d\n", this_host->hostname, peer->ip_addr, peer->port);
 		#endif
 
 		// Receive routing table
-		char resp[BUFF_MAX];
-		int n = read(client_sockfd, resp, BUFF_MAX - 1);
-// PROBLEM END (below does not run)
-		#ifdef DEBUG
-			printf("[DEBUG] Received %d bytes from %s:%d\n", n, host, port);
-		#endif
+	
+		packet_t* recv_pkt = packet_receive(client_sockfd);
 
-		if (n > 0)
+		if (recv_pkt)
 		{
-			resp[n] = '\0';
-			
-			#ifdef DEBUG
-				printf("[DEBUG] Received: %s\n", resp);
-			#endif
-
-			printf("%s[Peer %d]%s Connected\n",
-				ANSI_GREEN,
-				user_id,
-				ANSI_RESET);
-
-			// Process received routing table
-			if (strncmp(resp, "ROUTES:", 7) == 0)
-			{
-				nav_table_t received_table;
-				deserialize_table(&received_table, resp);
-		
-				if (received_table.routes[0].host.port != 0)
-				{
-					update_uni_table(&received_table);
-					printf("[Gossip] Received routing table from %s:%d\n", host, port);
-					run_da(&routing_table, &this_nav_table);
-				} else {
-					printf("[DEBUG] Received table was empty\n");
-				}
-			} else {
-				printf("[DEBUG] Response was not a routing table\n");
-			}
-		} else if (n == 0) {
-			printf("[DEBUG] Connection closed by peer\n");
-		} else {
-			printf("[DEBUG] Read error: %d\n", n);
+#ifdef DEBUG
+			printf("Recieved ACK packet from %s:%d; %s\n", host, port, peer->ip_addr);
+#endif
+			printf("[User %s]->[User %s]: ACK\n", peer->ip_addr, this_host->ip_addr);
+			packet_free(recv_pkt);
 		}
+		
+		free(peer);
+		free(this_host);
 		close(client_sockfd);
 		connected = true;
 		sleep(1);
@@ -665,13 +380,10 @@ int main(int argc, char* argv[])
 	printf("Good build\n");
 
 	if (argc < 2) 
-		error("Usage: [this_port] [user_hostname] [user_port]");
+		perror("Usage: [this_port] [user_hostname] [user_port]");
 
 	int port = atoi(argv[1]);
 	this_port = port;
-
-	memset(&this_nav_table, 0, sizeof(nav_table_t));
-	memset(&routing_table, 0, sizeof(uni_table_t));
 
 	pthread_t server_t;
 	pthread_create(&server_t, NULL, server_thread, &port);
@@ -697,10 +409,6 @@ int main(int argc, char* argv[])
 			pthread_create(&client_t, NULL, client_thread, user_args);
 			pthread_detach(client_t);
 		}
-		//char* user_args[] = {argv[2], argv[3]};
-		//pthread_t client_t;
-		//pthread_create(&client_t, NULL, client_thread, user_args);
-		//pthread_detach(client_t);
 	}
 
 	pthread_join(server_t, NULL);

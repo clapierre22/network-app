@@ -4,7 +4,8 @@ services:
     container_name: node0
     hostname: node0
     networks:
-      - test-net
+      test-net:
+        ipv4_address: 10.0.0.5
     command: ["./user", "8001"]
 
   node1:
@@ -12,7 +13,8 @@ services:
     container_name: node1
     hostname: node1
     networks:
-      - test-net
+      test-net:
+        ipv4_address: 10.0.0.6
     depends_on:
       - node0
     command: ["sh", "-c", "sleep 2 && ./user 8002 node0 8001"]
@@ -22,48 +24,55 @@ services:
     container_name: node2
     hostname: node2
     networks:
-      - test-net
+      test-net:
+        ipv4_address: 10.0.0.7
     depends_on:
-      - node0
       - node1
-    command: ["sh", "-c", "sleep 2 && ./user 8003 node0 8001 node1 8002"]
+      - node0
+    command: ["sh", "-c", "sleep 2 && ./user 8003 node1 8002 node0 8001"]
 
   node3:
     build: .
     container_name: node3
     hostname: node3
     networks:
-      - test-net
+      test-net:
+        ipv4_address: 10.0.0.8
     depends_on:
       - node1
-      - node2
       - node0
-    command: ["sh", "-c", "sleep 2 && ./user 8004 node1 8002 node2 8003 node0 8001"]
+      - node2
+    command: ["sh", "-c", "sleep 2 && ./user 8004 node1 8002 node0 8001 node2 8003"]
 
   node4:
     build: .
     container_name: node4
     hostname: node4
     networks:
-      - test-net
+      test-net:
+        ipv4_address: 10.0.0.9
     depends_on:
-      - node0
       - node3
+      - node1
       - node2
-    command: ["sh", "-c", "sleep 3 && ./user 8005 node0 8001 node3 8004 node2 8003"]
+    command: ["sh", "-c", "sleep 3 && ./user 8005 node3 8004 node1 8002 node2 8003"]
 
   node5:
     build: .
     container_name: node5
     hostname: node5
     networks:
-      - test-net
+      test-net:
+        ipv4_address: 10.0.0.10
     depends_on:
-      - node3
-      - node4
+      - node1
       - node2
-    command: ["sh", "-c", "sleep 3 && ./user 8006 node3 8004 node4 8005 node2 8003"]
+      - node3
+    command: ["sh", "-c", "sleep 3 && ./user 8006 node1 8002 node2 8003 node3 8004"]
 
 networks:
   test-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24

@@ -1,10 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 
 #define NUM_NODES 6
 #define BASE_PORT 8001
 #define DIRECT_NODES 3
+
+//#define SUBNET "10.0.0.0/24"
+#define BASE_HOST 5
 
 void shuffle(int* arr, int n)
 {
@@ -21,8 +25,17 @@ void shuffle(int* arr, int n)
 
 int main(int argc, char* argv[])
 {
+	fprintf(stdout, "Usage: [IP Subnet (default: 10.0.0.0/24)]\n");
+
 	FILE *fp;
 	char* peers[DIRECT_NODES * 10];
+
+	char* subnet = (argc > 1) ? argv[1] : "10.0.0.0/24";
+	char base_ip[16];
+
+	sscanf(subnet, "%[^/]", base_ip);
+    	char* c = strrchr(base_ip, '.');
+    	if (c) *c = '\0';
 
 	fp = fopen("compose.yaml", "w");
 
@@ -32,12 +45,16 @@ int main(int argc, char* argv[])
 	{
 		int port;
 		port = BASE_PORT + i;
+
+		int this_octet = BASE_HOST + i;
+
 		fprintf(fp, "  node%d:\n", i);
 		fprintf(fp, "    build: .\n");
 		fprintf(fp, "    container_name: node%d\n", i);
 		fprintf(fp, "    hostname: node%d\n", i);
 		fprintf(fp, "    networks:\n");
-		fprintf(fp, "      - test-net\n");	
+		fprintf(fp, "      test-net:\n");
+		fprintf(fp, "        ipv4_address: %s.%d\n", base_ip, this_octet);
 		
 		if (i > 0)
 		{
@@ -80,6 +97,9 @@ int main(int argc, char* argv[])
 	fprintf(fp, "networks:\n");
 	fprintf(fp, "  test-net:\n");
 	fprintf(fp, "    driver: bridge\n");
+	fprintf(fp, "    ipam:\n");
+	fprintf(fp, "      config:\n");
+	fprintf(fp, "        - subnet: %s\n", subnet);
 
 	fclose(fp);
 
