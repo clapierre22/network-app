@@ -8,18 +8,26 @@
 /*
  * Global Variables
  */
-//user_t direct_users[MAX_DIRECT_USERS];
 int this_port = 0;
 int this_sockfd;
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 int rt_count = 0;
 
-//void gossip(user_info_t host, user_info_t user, bool is_client)
-//{
-//	pthread_mutex_lock(&mtx);
-
-//	pthread_mutex_unlock(&mtx);
-//}
+/*
+ * Helper Function to print messages
+ */
+void print_comm(user_t* from, user_t* to, const char* msg)
+{
+	fprintf(stdout, "%s[User %s]%s->%s[User %s]%s: %s\n",
+			ANSI_GREEN,
+			from->ip_addr,
+			ANSI_RESET,
+			ANSI_YELLOW,
+			to->ip_addr,
+			ANSI_RESET,
+			msg
+	       );
+}
 
 /*
  * Retrieves user info and fills a user struct pointer
@@ -74,7 +82,7 @@ int get_user_info(user_t* user, int sockfd, bool remote)
     	}
     	else
     	{
-        	// Fallback: use IP as hostname
+        	// If no hostname, use IP as hostname
         	strncpy(user->hostname, user->ip_addr, HOSTNAME_MAX - 1);
     	    user->hostname[HOSTNAME_MAX - 1] = '\0';
     	}
@@ -82,6 +90,9 @@ int get_user_info(user_t* user, int sockfd, bool remote)
 	return 0;
 }
 
+/*
+ * Thread process for handling incomming user connection from server-size thread
+ */
 void* handle_user(void* arg)
 {
 	int user_sockfd = *(int*)arg;
@@ -130,18 +141,10 @@ void* handle_user(void* arg)
 	switch (recv_pkt->header.type)
 	{
 		case (MSG):
-#ifdef DEBUG
-			printf("[User %s]->[User %s]: %s\n",
-					from->ip_addr,
-					to->ip_addr,
-					recv_pkt->data);
-#endif	
+			print_comm(from, to, recv_pkt->data);
 			break;
 		case (ACK):
-#ifdef DEBUG
-			printf("[User %s]: ACK\n", 
-					from->ip_addr);
-#endif
+			print_comm(from, to, "ACK");
 			break;
 		default:
 			printf("Warning: Unknown Packet Type\n");
@@ -158,6 +161,8 @@ void* handle_user(void* arg)
 		return NULL;
 	}
 
+	print_comm(to, from, "ACK");
+
 	close(user_sockfd);
 	packet_free(recv_pkt);
 	packet_free(ack_pkt);
@@ -167,8 +172,13 @@ void* handle_user(void* arg)
 	return NULL;
 }
 
+/*
+ * Server thread, waits for incomming connections and creates new handle_user thread for
+ * each incomming user
+ */
 void* server_thread(void* arg)
 {
+	// TODO: Switch from using port to ip_addr, keep port but set it to constant
 	int port = *(int*)arg;
 	struct sockaddr_in addr;
 	
@@ -212,6 +222,9 @@ void* server_thread(void* arg)
 	return NULL;
 }
 
+/*
+ * Client thread, used to connect to other user's server thread
+ */
 void* client_thread(void* arg)
 {
 	char** args = (char**)arg;
@@ -326,15 +339,6 @@ void* client_thread(void* arg)
 			continue;
 		}
 
-		printf("%s[User %s]%s->%s[User %s]%s: %s\n",
-			ANSI_GREEN,
-			this_host->ip_addr,
-			ANSI_RESET,
-			ANSI_YELLOW,
-			peer->ip_addr,
-			ANSI_RESET,
-			pkt->data);
-
 		packet_free(pkt);
 
 		// Share routing table
@@ -351,7 +355,8 @@ void* client_thread(void* arg)
 #ifdef DEBUG
 			printf("Recieved ACK packet from %s:%d; %s\n", host, port, peer->ip_addr);
 #endif
-			printf("[User %s]->[User %s]: ACK\n", peer->ip_addr, this_host->ip_addr);
+			print_comm(this_host, peer, msg);
+			print_comm(peer, this_host, "ACK");
 			packet_free(recv_pkt);
 		}
 		
@@ -372,6 +377,9 @@ void* client_thread(void* arg)
 	return NULL;
 }
 
+/*
+ * Main loop
+ */
 int main(int argc, char* argv[])
 {
 	setbuf(stdout, NULL);
@@ -394,9 +402,9 @@ int main(int argc, char* argv[])
 		sleep(1);
 		// Count peers by pairs (hostname, port)
 		int num_peers = (argc - 2) / 2;
-
-		printf("[DEBUG] argc=%d, num_peers=%d\n", argc, num_peers);
-
+#ifdef DEBUG
+		printf("[DEBUG] argc: %d, num_peers: %d\n", argc, num_peers);
+#endif
 		for (int i = 0; i < num_peers; i++)
 		{
 			char** user_args = malloc(2 * sizeof(char*));

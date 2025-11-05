@@ -1,7 +1,7 @@
 #ifndef USER_H
 #define USER_H
 
-#define DEBUG
+//#define DEBUG
 
 #include "util.h"
 //#include "routing.h"
