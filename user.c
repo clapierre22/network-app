@@ -1,13 +1,23 @@
+/*
+ * Main User File
+ * A: Calvin LaPierre
+ * LM: 11/5/25
+ */
+
 #include "user.h"
 
 // TODO:
 // - Combine client_thread, server_thread; or otherwise utilize
 // 	handle_user more than the other two as there should be one 
 // 	connection/thread
+// - Implement Packet Forwarding, system checks if packet dst is this user, if not then
+// 	forward to next user
 
 /*
  * Global Variables
  */
+//const user_t* this_user = calloc(1, sizeof(user_t));
+user_t* this_user;
 int this_port = 0;
 int this_sockfd;
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -27,6 +37,15 @@ void print_comm(user_t* from, user_t* to, const char* msg)
 			ANSI_RESET,
 			msg
 	       );
+}
+
+/*
+ * Returns 1 if pkt->header.to is equal to the local user
+ * Returns 0 if not dst
+ */
+int for_here(packet_t* pkt)
+{
+	return (strcmp(pkt->header.to.ip_addr, this_user->ip_addr) == 0);
 }
 
 /*
@@ -128,31 +147,45 @@ void* handle_user(void* arg)
 		return NULL;
 	}
 	
-//	strncpy(from->hostname, recv_pkt->header.from.hostname, HOSTNAME_MAX - 1);
-//	strncpy(from->ip_addr, recv_pkt->header.from.ip_addr, IP_MAX - 1);
+
 	from->port = recv_pkt->header.from.port;
 	from->connected = recv_pkt->header.from.connected;
-//	
-//	strncpy(to->hostname, recv_pkt->header.to.hostname, HOSTNAME_MAX - 1);
-//	strncpy(to->ip_addr, recv_pkt->header.to.ip_addr, IP_MAX - 1);
+
 	to->port = this_port;
 	to->connected = 1;
-	
-	switch (recv_pkt->header.type)
+
+	// Call handle_pkt, which will have this logic
+	if (for_here(recv_pkt))
 	{
-		case (MSG):
-			print_comm(from, to, recv_pkt->data);
-			break;
-		case (ACK):
-			print_comm(from, to, "ACK");
-			break;
-		default:
-			printf("Warning: Unknown Packet Type\n");
+		// Parse Data
+		switch (recv_pkt->header.type)
+		{
+			case (MSG):
+				print_comm(from, to, recv_pkt->data);
+				break;
+			case (ACK):
+				print_comm(from, to, "ACK");
+				break;
+			default:
+				printf("Warning: Unknown Packet Type\n");
+		}
 	}
+//	else
+//	{
+		// Forward Packet
+		// Create new client thread, sockfd
 
-	// Check if gossip msg
+//		int f = packet_send(user_sockfd, recv_pkt);
+//		if (f < 0)
+//		{
+//			perror("Error forwarding packet");
+//			close(user_sockfd);
+//			return NULL;
+//		}
+//	}
 
-	packet_t* ack_pkt = packet_init(ACK, to, from, NULL, 0);
+	// This always is called, "to" is replaced with "this_user"
+	packet_t* ack_pkt = packet_init(ACK, this_user, from, NULL, 0);
 	n = packet_send(user_sockfd, ack_pkt);
 	if (n < 0)
 	{
@@ -185,6 +218,10 @@ void* server_thread(void* arg)
 	this_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (this_sockfd < 0) perror("Error creating socket");
 
+	pthread_mutex_lock(&mtx);	
+	get_user_info(this_user, this_sockfd, false);
+	pthread_mutex_unlock(&mtx);
+
 	int opt = 1;
 	setsockopt(
 		this_sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -198,7 +235,15 @@ void* server_thread(void* arg)
 		perror("Error binding socket");
 
 	if (listen(this_sockfd, 10) < 0) perror("Error listening on socket");
-	printf("Listening on port %d\n", port);
+
+	// TODO: Have the server thread be where the user program fills out the data
+	// for the local user_t information (this_user)
+
+//	user_t* serv = calloc(1, sizeof(user_t));
+//	get_user_info(serv, this_sockfd, false);
+	
+	// BROKEN: Reports [User 0.0.0.0] when should use local ip_addr
+	fprintf(stdout, "[User %s]: Listening on port %d\n", this_user->ip_addr, port);
 
 	while(RUNNING)
 	{
@@ -228,17 +273,41 @@ void* server_thread(void* arg)
 void* client_thread(void* arg)
 {
 	char** args = (char**)arg;
-        char* host = args[0];
+        char* ip_addr = args[0];
         int port = atoi(args[1]);
 	int count = 0;
 	int user_id = port;
 	bool connected = false;
 	bool running = true;
 	int retry_count = 0;
+	thread_type_t type;
+	packet_t* forw_pkt = malloc(sizeof(packet_t));
+	bool forward = false;
+
+	// Check thread type
+//	if (args[2] != NULL)
+//	{
+//		type = args[2];
+//		switch(type)
+//		{
+//			case FOR:
+//				// Check for packet_t
+//				if (args[3] != NULL)
+//				{
+//					forw_pkt = args[3];
+//					forward = true;
+//				}
+//				break;
+//			case REC:
+//				break;
+//		}
+//
+//		
+//	}
 
 	#ifdef DEBUG
 		printf("[DEBUG] client_thread starting: host=%s, port_str=%s, port=%d\n", 
-               host, args[1], port);
+               ip_addr, args[1], port);
 	#endif
 
 	free(args);
@@ -254,23 +323,32 @@ void* client_thread(void* arg)
 			break;
 		}
 		
-		struct hostent* h = gethostbyname(host);
+//		struct hostent* h = gethostbyname(host);
+//
+//		if (h == NULL)
+//		{
+//			//perror("Error retrieving host by name");
+//			fprintf(stderr, "Error resolving hostname: %s\n", host);
+//			close(client_sockfd);
+//			retry_count++;
+//			sleep(1);
+//			continue;
+//		}
+		
+		struct sockaddr_in addr;
+		memset(&addr, 0, sizeof(addr));
+		addr.sin_family = AF_INET;
+//		memcpy(&addr.sin_addr, h->h_addr, h->h_length);
+		addr.sin_port = htons(port);
 
-		if (h == NULL)
+		if (inet_pton(AF_INET, ip_addr, &addr.sin_addr) <= 0)
 		{
-			//perror("Error retrieving host by name");
-			fprintf(stderr, "Error resolving hostname: %s\n", host);
+			fprintf(stderr, "Invalid IP Address: %s\n", ip_addr);
 			close(client_sockfd);
 			retry_count++;
 			sleep(1);
 			continue;
 		}
-		
-		struct sockaddr_in addr;
-		memset(&addr, 0, sizeof(addr));
-		addr.sin_family = AF_INET;
-		memcpy(&addr.sin_addr, h->h_addr, h->h_length);
-		addr.sin_port = htons(port);
 
 		if (connect(
 			client_sockfd, 
@@ -317,29 +395,36 @@ void* client_thread(void* arg)
 		this_host->port = this_port;
 		this_host->connected = 1;
 
+//		if (forward)
+//		{
+//			int n = packet_send(client_sockfd
+//		}
+//		else
+//		{
 
-		char* msg = "Test Message";
-		packet_t* pkt = packet_init(MSG, this_host, peer, msg, (uint32_t)strlen(msg));
-
-		if (!pkt) 
-		{
-			fprintf(stderr, "Failed to create packet\n");
-			close(client_sockfd);
-			retry_count++;
-			continue;
-		}
-
-		int n = packet_send(client_sockfd, pkt);
-		if (n < 0)
-		{
-			close(client_sockfd);
+			char* msg = "Test Message";
+			packet_t* pkt = packet_init(MSG, this_host, peer, msg, (uint32_t)strlen(msg));
+	
+			if (!pkt) 
+			{
+				fprintf(stderr, "Failed to create packet\n");
+				close(client_sockfd);
+				retry_count++;
+				continue;
+			}
+	
+			int n = packet_send(client_sockfd, pkt);
+			if (n < 0)
+			{
+				close(client_sockfd);
+				packet_free(pkt);
+				retry_count++;
+				sleep(1);
+				continue;
+			}
+	
 			packet_free(pkt);
-			retry_count++;
-			sleep(1);
-			continue;
-		}
-
-		packet_free(pkt);
+//		}
 
 		// Share routing table
 		#ifdef DEBUG
@@ -371,7 +456,7 @@ void* client_thread(void* arg)
         {
                 fprintf(stderr, 
 		"[Warning] Failed to connect to %s:%d after %d retries\n", 
-                        host, port, MAX_RETRIES);
+                        ip_addr, port, MAX_RETRIES);
         }
 
 	return NULL;
@@ -388,13 +473,24 @@ int main(int argc, char* argv[])
 	printf("Good build\n");
 
 	if (argc < 2) 
-		perror("Usage: [this_port] [user_hostname] [user_port]");
+		perror("Usage: [this_port] [user_ip_addr] [user_port]");
 
 	int port = atoi(argv[1]);
 	this_port = port;
 
 	pthread_t server_t;
 	pthread_create(&server_t, NULL, server_thread, &port);
+
+	this_user = calloc(1, sizeof(user_t));
+	char h_buff[256];
+	char* l_ip_addr;
+	struct hostent* h;
+
+	gethostname(h_buff, sizeof(h_buff));
+	h = gethostbyname(h_buff);
+	l_ip_addr = inet_ntoa(*((struct in_addr*) h->h_addr_list[0]));
+
+	strcpy(this_user->ip_addr, l_ip_addr);
 
 	if (argc >= 4)
 	{
@@ -408,7 +504,8 @@ int main(int argc, char* argv[])
 		for (int i = 0; i < num_peers; i++)
 		{
 			char** user_args = malloc(2 * sizeof(char*));
-			// Hostname
+		
+			// IP Address
 			user_args[0] = argv[2 + i * 2];
 			// Port
 			user_args[1] = argv[2 + i * 2 + 1];

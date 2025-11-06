@@ -4,7 +4,7 @@
 #include <string.h>
 
 #define NUM_NODES 6
-#define BASE_PORT 8001
+#define BASE_PORT 8008
 #define DIRECT_NODES 3
 
 //#define SUBNET "10.0.0.0/24"
@@ -25,12 +25,24 @@ void shuffle(int* arr, int n)
 
 int main(int argc, char* argv[])
 {
-	fprintf(stdout, "Usage: [IP Subnet (default: 10.0.0.0/24)]\n");
+	fprintf(stdout, "Usage: ./gen_conn [IP Subnet]\n");
+
+	char* subnet = "10.0.0.0/24";
+
+	if (argc > 1)
+	{
+		subnet = argv[1];
+		fprintf(stdout, "Setting IP Subnet to %s\n", subnet);
+	}
+	else
+	{
+		fprintf(stdout, "Using default IP Subnet (10.0.0.0/24)\n");
+	}
 
 	FILE *fp;
 	char* peers[DIRECT_NODES * 10];
 
-	char* subnet = (argc > 1) ? argv[1] : "10.0.0.0/24";
+	//char* subnet = (argc > 1) ? argv[1] : "10.0.0.0/24";
 	char base_ip[16];
 
 	sscanf(subnet, "%[^/]", base_ip);
@@ -43,8 +55,8 @@ int main(int argc, char* argv[])
 	
 	for (int i = 0; i < NUM_NODES; i++)
 	{
-		int port;
-		port = BASE_PORT + i;
+		int port = BASE_PORT; // CHANGED: All use same port as each container will have unique IP ADDR
+		//port = BASE_PORT + i;
 
 		int this_octet = BASE_HOST + i;
 
@@ -82,8 +94,9 @@ int main(int argc, char* argv[])
 			for (int y = 0; y < conn_count; y++)
 			{
 				int peer_idx = avail[y];
-				int peer_port = BASE_PORT + peer_idx;
-				fprintf(fp, " node%d %d", peer_idx, peer_port);
+				int peer_octet = BASE_HOST + peer_idx;
+				int peer_port = BASE_PORT;
+				fprintf(fp, " %s.%d %d", base_ip, peer_octet, peer_port);
 			}
 			fprintf(fp, "\"]\n");
 

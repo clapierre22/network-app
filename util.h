@@ -60,10 +60,10 @@ typedef enum
 {
 	CON, // Connect
 	GOS, // Gossip
-	MSG,// Message
+	MSG, // Message
 	DCN, // Disconnect
 	ACK, // Acknowledge
-	ERR // Error
+	ERR  // Error
 } packet_type_t;
 
 typedef struct
@@ -83,5 +83,12 @@ typedef struct
 
 #define PACKET_HEADER_SIZE sizeof(packet_header_t)
 #define MAX_PACKET_DATA 8192
+
+// Threading
+typedef enum
+{
+	FOR, // Forward
+	REC  // Receive
+} thread_type_t;
 
 #endif // UTIL_H
